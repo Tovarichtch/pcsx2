@@ -30,6 +30,9 @@
 #include <thread>
 #include <mutex>
 
+extern bool g_guncon2_display_dark;
+extern int g_guncon2_count;
+
 static void DumpGSPrivRegs(const GSPrivRegSet& r, const std::string& filename);
 
 static constexpr std::array<PresentShader, 8> s_tv_shader_indices = {
@@ -72,6 +75,7 @@ void GSRenderer::Reset(bool hardware_reset)
 
 void GSRenderer::Destroy()
 {
+	m_photodiode_dl.reset();
 	GSCapture::EndCapture();
 }
 
@@ -90,6 +94,7 @@ bool GSRenderer::Merge(int field)
 	if (!PCRTCDisplays.PCRTCDisplays[0].enabled && !PCRTCDisplays.PCRTCDisplays[1].enabled)
 	{
 		m_real_size = GSVector2i(0, 0);
+		g_guncon2_display_dark = true;
 		return false;
 	}
 
@@ -141,8 +146,12 @@ bool GSRenderer::Merge(int field)
 				mad_tex = nullptr;
 			}
 		}
+		g_guncon2_display_dark = true;
 		return false;
 	}
+
+	// Display active, photodiode sampling below may override.
+	g_guncon2_display_dark = false;
 
 	s_n++;
 
@@ -238,6 +247,36 @@ bool GSRenderer::Merge(int field)
 
 	const u32 c = (m_regs->BGCOLOR.U32[0] & 0x00FFFFFFu) | (m_regs->PMODE.ALP << 24);
 	g_gs_device->Merge(tex, src_gs_read, dst, fs, m_regs->PMODE, m_regs->EXTBUF, c);
+
+	// GunCon2 photodiode: sample center pixel to detect black-frame calibration screens.
+	if (g_guncon2_count > 0)
+	{
+		GSTexture* current = g_gs_device->GetCurrent();
+		if (current)
+		{
+			if (!m_photodiode_dl)
+				m_photodiode_dl = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
+			if (m_photodiode_dl)
+			{
+				const int cx = current->GetWidth() / 2;
+				const int cy = current->GetHeight() / 2;
+				m_photodiode_dl->CopyFromTexture(
+					GSVector4i(0, 0, 1, 1), current,
+					GSVector4i(cx, cy, cx + 1, cy + 1), 0);
+				m_photodiode_dl->Flush();
+
+				const GSVector4i rc(0, 0, 1, 1);
+				if (m_photodiode_dl->Map(rc))
+				{
+					const u32 px = *reinterpret_cast<const u32*>(m_photodiode_dl->GetMapPointer());
+					const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
+					if (lum < 10)
+						g_guncon2_display_dark = true;
+					m_photodiode_dl->Unmap();
+				}
+			}
+		}
+	}
 
 	if (isReallyInterlaced() && GSConfig.InterlaceMode != GSInterlaceMode::Off)
 	{

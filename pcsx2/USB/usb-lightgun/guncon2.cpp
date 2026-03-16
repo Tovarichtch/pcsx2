@@ -19,6 +19,9 @@
 
 #include <tuple>
 
+extern bool g_guncon2_display_dark;
+extern int g_guncon2_count;
+
 namespace usb_lightgun
 {
 	enum : u32
@@ -118,6 +121,7 @@ namespace usb_lightgun
 	struct GunCon2State
 	{
 		explicit GunCon2State(u32 port_);
+		~GunCon2State();
 
 		USBDevice dev{};
 		USBDesc desc{};
@@ -269,42 +273,22 @@ namespace usb_lightgun
 				{
 					const auto [pos_x, pos_y] = us->CalculatePosition();
 
-					// Time Crisis games do a "calibration" by displaying a black frame for a single frame,
-					// waiting for the gun to report (0, 0), and then computing an offset on the first non-zero
-					// value. So, after the trigger is pulled, we wait for a few frames, then send the (0, 0)
-					// report, then go back to normal values. To reduce error if the mouse is moving during
-					// these frames (unlikely), we store the fire position and keep returning that.
-					if (us->button_state & (1u << BID_RECALIBRATE) && us->calibration_timer == 0)
-					{
-						us->calibration_timer = GUNCON2_CALIBRATION_DELAY;
-						us->calibration_pos_x = pos_x;
-						us->calibration_pos_y = pos_y;
-					}
-
 					// Buttons are active low.
 					GunCon2Out out;
 					out.buttons = static_cast<u16>(~us->button_state) | (us->param_mode & GUNCON2_FLAG_PROGRESSIVE);
 					out.pos_x = pos_x;
 					out.pos_y = pos_y;
 
-					if (us->calibration_timer > 0)
+					if (us->button_state & (1u << BID_SHOOT_OFFSCREEN))
 					{
-						// Force trigger down while calibrating.
 						out.buttons &= ~(1u << BID_TRIGGER);
-						out.pos_x = us->calibration_pos_x;
-						out.pos_y = us->calibration_pos_y;
-						us->calibration_timer--;
-
-						if (us->calibration_timer < GUNCON2_CALIBRATION_REPORT_DELAY)
-						{
-							out.pos_x = 0;
-							out.pos_y = 0;
-						}
+						out.pos_x = 0;
+						out.pos_y = 0;
 					}
-					else if (us->button_state & (1u << BID_SHOOT_OFFSCREEN))
+
+					// Photodiode: report (0,0) when screen is dark.
+					if (g_guncon2_display_dark)
 					{
-						// Offscreen shot - use 0,0.
-						out.buttons &= ~(1u << BID_TRIGGER);
 						out.pos_x = 0;
 						out.pos_y = 0;
 					}
@@ -338,6 +322,12 @@ namespace usb_lightgun
 	GunCon2State::GunCon2State(u32 port_)
 		: port(port_)
 	{
+		g_guncon2_count++;
+	}
+
+	GunCon2State::~GunCon2State()
+	{
+		g_guncon2_count--;
 	}
 
 	void GunCon2State::AutoConfigure()
@@ -373,7 +363,7 @@ namespace usb_lightgun
 		GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
 
 		s16 pos_x, pos_y;
-		if (pointer_x < 0.0f || pointer_y < 0.0f)
+		if (pointer_x < 0.0f || pointer_y < 0.0f || pointer_x > 1.0f || pointer_y > 1.0f)
 		{
 			// off-screen
 			pos_x = 0;
@@ -587,8 +577,6 @@ namespace usb_lightgun
 			{"Trigger", TRANSLATE_NOOP("USB", "Trigger"), nullptr, InputBindingInfo::Type::Button, BID_TRIGGER, GenericInputBinding::R2},
 			{"ShootOffscreen", TRANSLATE_NOOP("USB", "Shoot Offscreen"), nullptr, InputBindingInfo::Type::Button, BID_SHOOT_OFFSCREEN,
 				GenericInputBinding::R1},
-			{"Recalibrate", TRANSLATE_NOOP("USB", "Calibration Shot"), nullptr, InputBindingInfo::Type::Button, BID_RECALIBRATE,
-				GenericInputBinding::Unknown},
 			{"A", TRANSLATE_NOOP("USB", "A"), nullptr, InputBindingInfo::Type::Button, BID_A, GenericInputBinding::Cross},
 			{"B", TRANSLATE_NOOP("USB", "B"), nullptr, InputBindingInfo::Type::Button, BID_B, GenericInputBinding::Circle},
 			{"C", TRANSLATE_NOOP("USB", "C"), nullptr, InputBindingInfo::Type::Button, BID_C, GenericInputBinding::Triangle},

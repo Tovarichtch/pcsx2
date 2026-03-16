@@ -56,6 +56,10 @@
 
 Pcsx2Config::GSOptions GSConfig;
 
+// GunCon2 photodiode state, shared between GS and USB threads.
+bool g_guncon2_display_dark = false;
+int g_guncon2_count = 0;
+
 static GSRendererType GSCurrentRenderer;
 
 GSRendererType GSGetCurrentRenderer()
