@@ -56,6 +56,9 @@
 
 Pcsx2Config::GSOptions GSConfig;
 
+std::atomic<bool> g_guncon2_display_dark{false};
+std::atomic<int> g_guncon2_count{0};
+
 static GSRendererType GSCurrentRenderer;
 
 GSRendererType GSGetCurrentRenderer()

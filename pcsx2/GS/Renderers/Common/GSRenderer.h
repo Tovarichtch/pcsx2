@@ -24,6 +24,9 @@ private:
 	int m_last_draw_n = 0;
 	int m_last_transfer_n = 0;
 
+	// GunCon2 photodiode readback.
+	std::unique_ptr<GSDownloadTexture> m_photodiode_dl;
+
 protected:
 	GSVector2i m_real_size{0, 0};
 	bool m_texture_shuffle = false;

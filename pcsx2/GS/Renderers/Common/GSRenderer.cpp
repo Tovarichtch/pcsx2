@@ -72,6 +72,7 @@ void GSRenderer::Reset(bool hardware_reset)
 
 void GSRenderer::Destroy()
 {
+	m_photodiode_dl.reset();
 	GSCapture::EndCapture();
 }
 
@@ -86,6 +87,11 @@ bool GSRenderer::Merge(int field)
 	float tex_scale[3] = { 0.0f, 0.0f, 0.0f };
 	int y_offset[3] = { 0, 0, 0 };
 	const bool feedback_merge = m_regs->EXTWRITE.WRITE == 1;
+
+	// GunCon2 photodiode: assume dark until pixel sampling proves otherwise.
+	// Early returns (no displays, no textures) leave this true — correct behavior.
+	const bool gun_active = g_guncon2_count.load(std::memory_order_relaxed) > 0;
+	g_guncon2_display_dark.store(gun_active, std::memory_order_relaxed);
 
 	if (!PCRTCDisplays.PCRTCDisplays[0].enabled && !PCRTCDisplays.PCRTCDisplays[1].enabled)
 	{
@@ -238,6 +244,38 @@ bool GSRenderer::Merge(int field)
 
 	const u32 c = (m_regs->BGCOLOR.U32[0] & 0x00FFFFFFu) | (m_regs->PMODE.ALP << 24);
 	g_gs_device->Merge(tex, src_gs_read, dst, fs, m_regs->PMODE, m_regs->EXTBUF, c);
+
+	// GunCon2 photodiode: sample center pixel to detect black-frame calibration.
+	// Sum of R+G+B < threshold means the screen is dark.
+	if (gun_active)
+	{
+		static constexpr u32 GUNCON2_DARK_THRESHOLD = 10;
+		GSTexture* current = g_gs_device->GetCurrent();
+		if (current)
+		{
+			if (!m_photodiode_dl)
+				m_photodiode_dl = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
+			if (m_photodiode_dl)
+			{
+				const int cx = current->GetWidth() / 2;
+				const int cy = current->GetHeight() / 2;
+				m_photodiode_dl->CopyFromTexture(
+					GSVector4i(0, 0, 1, 1), current,
+					GSVector4i(cx, cy, cx + 1, cy + 1), 0);
+				m_photodiode_dl->Flush();
+
+				const GSVector4i rc(0, 0, 1, 1);
+				if (m_photodiode_dl->Map(rc))
+				{
+					const u32 px = *reinterpret_cast<const u32*>(m_photodiode_dl->GetMapPointer());
+					const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
+					if (lum >= GUNCON2_DARK_THRESHOLD)
+						g_guncon2_display_dark.store(false, std::memory_order_relaxed);
+					m_photodiode_dl->Unmap();
+				}
+			}
+		}
+	}
 
 	if (isReallyInterlaced() && GSConfig.InterlaceMode != GSInterlaceMode::Off)
 	{
