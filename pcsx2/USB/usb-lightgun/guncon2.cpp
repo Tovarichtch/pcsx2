@@ -17,6 +17,8 @@
 #include "common/Console.h"
 #include "common/StringUtil.h"
 
+#include "fmt/format.h"
+
 #include <tuple>
 
 namespace usb_lightgun
@@ -141,6 +143,7 @@ namespace usb_lightgun
 		// Host State (Not Saved)
 		//////////////////////////////////////////////////////////////////////////
 		u32 button_state = 0;
+		u32 pointer_index = 0; // which pointer device to read position from
 		std::string cursor_path;
 		float cursor_scale = 1.0f;
 		u32 cursor_color = 0xFFFFFFFF;
@@ -369,7 +372,7 @@ namespace usb_lightgun
 	{
 		float pointer_x, pointer_y;
 		const auto& [window_x, window_y] =
-			(has_relative_binds) ? GetAbsolutePositionFromRelativeAxes() : InputManager::GetPointerAbsolutePosition(0);
+			(has_relative_binds) ? GetAbsolutePositionFromRelativeAxes() : InputManager::GetPointerAbsolutePosition(pointer_index);
 		GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
 
 		s16 pos_x, pos_y;
@@ -423,7 +426,7 @@ namespace usb_lightgun
 
 	u32 GunCon2State::GetSoftwarePointerIndex() const
 	{
-		return has_relative_binds ? (InputManager::MAX_POINTER_DEVICES + port) : 0;
+		return has_relative_binds ? (InputManager::MAX_POINTER_DEVICES + pointer_index) : pointer_index;
 	}
 
 	void GunCon2State::UpdateSoftwarePointerPosition()
@@ -498,6 +501,18 @@ namespace usb_lightgun
 		}
 
 		// Pointer settings.
+		const std::string pointer_source = USB::GetConfigString(si, s->port, TypeName(), "pointer_source", "Auto");
+		if (pointer_source == "Auto" || pointer_source.empty())
+		{
+			s->pointer_index = s->port;
+		}
+		else
+		{
+			// pointer_source is a device path — resolve to pointer index.
+			const std::optional<u32> idx = InputManager::GetPointerIndexForRawDevice(pointer_source);
+			s->pointer_index = idx.value_or(s->port);
+		}
+
 		const std::string pointer_binding = USB::GetConfigString(si, s->port, TypeName(), "Pointer", "");
 		std::string cursor_path(USB::GetConfigString(si, s->port, TypeName(), "cursor_path"));
 		const float cursor_scale = USB::GetConfigFloat(si, s->port, TypeName(), "cursor_scale", 1.0f);
@@ -603,9 +618,25 @@ namespace usb_lightgun
 		return bindings;
 	}
 
+	static std::vector<std::pair<std::string, std::string>> GetPointerDeviceList()
+	{
+		std::vector<std::pair<std::string, std::string>> result;
+		result.emplace_back("Auto", "Auto (use USB port number)");
+
+		// Add all raw mouse devices, keyed by device_path for persistence.
+		for (const auto& [device_path, display_name] : InputManager::EnumerateRawPointerDevices())
+			result.emplace_back(device_path, display_name);
+
+		return result;
+	}
+
 	std::span<const SettingInfo> GunCon2Device::Settings(u32 subtype) const
 	{
 		static constexpr const SettingInfo info[] = {
+			{SettingInfo::Type::StringList, "pointer_source", TRANSLATE_NOOP("USB", "Pointer Device"),
+				TRANSLATE_NOOP("USB", "Selects which mouse/lightgun device controls the aiming for this port. "
+									  "'Auto' uses the USB port number (USB1=Pointer 0, USB2=Pointer 1)."),
+				"Auto", nullptr, nullptr, nullptr, nullptr, nullptr, &GetPointerDeviceList},
 			{SettingInfo::Type::Path, "cursor_path", TRANSLATE_NOOP("USB", "Cursor Path"),
 				TRANSLATE_NOOP("USB", "Sets the crosshair image that this lightgun will use. Setting a crosshair image "
 									  "will disable the system cursor."),
