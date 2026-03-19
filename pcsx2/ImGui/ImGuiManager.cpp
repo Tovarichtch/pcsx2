@@ -1116,8 +1116,16 @@ void ImGuiManager::DrawSoftwareCursors()
 {
 	// This one's okay to race, worst that happens is we render the wrong number of cursors for a frame.
 	const u32 pointer_count = InputManager::MAX_POINTER_DEVICES;
+
 	for (u32 i = 0; i < pointer_count; i++)
+	{
+		// Lazy texture creation: if path was set but GS lambda was lost during init,
+		// create the texture now (we're already on the GS thread).
+		if (!s_software_cursors[i].image_path.empty() && !s_software_cursors[i].texture)
+			UpdateSoftwareCursorTexture(i);
+
 		DrawSoftwareCursor(s_software_cursors[i], InputManager::GetPointerAbsolutePosition(i));
+	}
 
 	for (u32 i = InputManager::MAX_POINTER_DEVICES; i < InputManager::MAX_SOFTWARE_CURSORS; i++)
 		DrawSoftwareCursor(s_software_cursors[i], s_software_cursors[i].pos);
@@ -1125,23 +1133,32 @@ void ImGuiManager::DrawSoftwareCursors()
 
 void ImGuiManager::SetSoftwareCursor(u32 index, std::string image_path, float image_scale, u32 multiply_color)
 {
-	MTGS::RunOnGSThread([index, image_path = std::move(image_path), image_scale, multiply_color]() {
-		pxAssert(index < std::size(s_software_cursors));
-		SoftwareCursor& sc = s_software_cursors[index];
-		sc.color = multiply_color | 0xFF000000;
-		if (sc.image_path == image_path && sc.scale == image_scale)
-			return;
+	pxAssert(index < std::size(s_software_cursors));
+	SoftwareCursor& sc = s_software_cursors[index];
 
-		const bool is_hiding_or_showing = (image_path.empty() != sc.image_path.empty());
-		sc.image_path = std::move(image_path);
-		sc.scale = image_scale;
+	// Set path, scale, and color on the CPU thread immediately.
+	// This ensures the cursor state is always up-to-date even if the GS thread
+	// lambda is delayed or dropped (e.g. during rapid USB device init).
+	// The draw function checks sc.texture before drawing, so a brief window
+	// where the path is set but the texture is null is harmless.
+	const bool path_or_scale_changed = (sc.image_path != image_path || sc.scale != image_scale);
+	const bool is_hiding_or_showing = (image_path.empty() != sc.image_path.empty());
+	sc.color = multiply_color | 0xFF000000;
+	sc.image_path = image_path; // copy, not move — lambda needs it too
+	sc.scale = image_scale;
+
+	if (!path_or_scale_changed)
+		return;
+
+	// Queue texture creation/destruction on the GS thread.
+	MTGS::RunOnGSThread([index, image_path = std::move(image_path), image_scale]() {
 		if (MTGS::IsOpen())
 			UpdateSoftwareCursorTexture(index);
-
-		// Hide the system cursor when we activate a software cursor.
-		if (is_hiding_or_showing && index == 0)
-			Host::RunOnCPUThread(&InputManager::UpdateHostMouseMode);
 	});
+
+	// Hide the system cursor when we activate a software cursor.
+	if (is_hiding_or_showing && index == 0)
+		InputManager::UpdateHostMouseMode();
 }
 
 bool ImGuiManager::HasSoftwareCursor(u32 index)
