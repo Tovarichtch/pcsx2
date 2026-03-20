@@ -295,6 +295,10 @@ namespace usb_lightgun
 					// Photodiode: report (0,0) when screen is dark.
 					if (g_guncon2_display_dark.load(std::memory_order_relaxed))
 					{
+						// DIAG: log dark detection (rate-limited, once per 60 polls)
+						static u32 s_diag_dark_count = 0;
+						if ((s_diag_dark_count++ % 60) == 0)
+							Console.WriteLn("(DIAG:GunCon2) Port %u photodiode DARK — reporting (0,0) [count=%u]", us->port, s_diag_dark_count);
 						out.pos_x = 0;
 						out.pos_y = 0;
 					}
@@ -498,12 +502,17 @@ namespace usb_lightgun
 		if (pointer_source == "Auto" || pointer_source.empty())
 		{
 			s->pointer_index = s->port;
+			// DIAG: log auto assignment
+			Console.WriteLn("(DIAG:GunCon2) Port %u pointer_source='Auto' → pointer_index=%u (=port)", s->port, s->pointer_index);
 		}
 		else
 		{
 			// pointer_source is a device path — resolve to pointer index.
 			const std::optional<u32> idx = InputManager::GetPointerIndexForRawDevice(pointer_source);
 			s->pointer_index = idx.value_or(s->port);
+			// DIAG: log device path resolution
+			Console.WriteLn("(DIAG:GunCon2) Port %u pointer_source='%s' → resolved=%s pointer_index=%u",
+				s->port, pointer_source.c_str(), idx.has_value() ? "YES" : "NO (fallback to port)", s->pointer_index);
 		}
 
 		const std::string pointer_binding = USB::GetConfigString(si, s->port, TypeName(), "Pointer", "");

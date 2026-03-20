@@ -18,6 +18,7 @@
 #include "common/FileSystem.h"
 #include "common/Image.h"
 #include "common/Path.h"
+#include "common/Console.h"
 #include "common/StringUtil.h"
 #include "common/Timer.h"
 
@@ -251,10 +252,26 @@ bool GSRenderer::Merge(int field)
 	{
 		static constexpr u32 GUNCON2_DARK_THRESHOLD = 10;
 		GSTexture* current = g_gs_device->GetCurrent();
+
+		// DIAG: photodiode state tracking (rate-limited to every 120 frames)
+		static u32 s_diag_frame_counter = 0;
+		static bool s_diag_logged_creation = false;
+		s_diag_frame_counter++;
+
 		if (current)
 		{
 			if (!m_photodiode_dl)
+			{
 				m_photodiode_dl = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
+				// DIAG: log download texture creation result
+				if (!s_diag_logged_creation)
+				{
+					Console.WriteLn("(DIAG:Photodiode) CreateDownloadTexture: %s (current=%dx%d fmt=%d)",
+						m_photodiode_dl ? "OK" : "FAILED",
+						current->GetWidth(), current->GetHeight(), static_cast<int>(current->GetFormat()));
+					s_diag_logged_creation = true;
+				}
+			}
 			if (m_photodiode_dl)
 			{
 				const int cx = current->GetWidth() / 2;
@@ -269,10 +286,41 @@ bool GSRenderer::Merge(int field)
 				{
 					const u32 px = *reinterpret_cast<const u32*>(m_photodiode_dl->GetMapPointer());
 					const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
+
+					// DIAG: log pixel value and dark state every 120 frames
+					if ((s_diag_frame_counter % 120) == 1)
+					{
+						const bool is_dark = (lum < GUNCON2_DARK_THRESHOLD);
+						Console.WriteLn("(DIAG:Photodiode) frame=%u px=0x%08X R=%u G=%u B=%u lum=%u threshold=%u dark=%s",
+							s_diag_frame_counter, px,
+							px & 0xFFu, (px >> 8) & 0xFFu, (px >> 16) & 0xFFu,
+							lum, GUNCON2_DARK_THRESHOLD, is_dark ? "YES" : "NO");
+					}
+
 					if (lum >= GUNCON2_DARK_THRESHOLD)
 						g_guncon2_display_dark.store(false, std::memory_order_relaxed);
 					m_photodiode_dl->Unmap();
 				}
+				else
+				{
+					// DIAG: log Map failure (once)
+					static bool s_diag_map_fail = false;
+					if (!s_diag_map_fail)
+					{
+						Console.Warning("(DIAG:Photodiode) Map() FAILED on download texture");
+						s_diag_map_fail = true;
+					}
+				}
+			}
+		}
+		else
+		{
+			// DIAG: log when GetCurrent() returns null (once)
+			static bool s_diag_no_current = false;
+			if (!s_diag_no_current)
+			{
+				Console.Warning("(DIAG:Photodiode) GetCurrent() returned null");
+				s_diag_no_current = true;
 			}
 		}
 	}

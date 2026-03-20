@@ -359,6 +359,10 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 
 	const HWND coord_hwnd = render_hwnd ? render_hwnd : m_hwnd;
 
+	// DIAG: log first 5 motion events per device to check flags and coordinates
+	static std::array<u32, InputManager::MAX_POINTER_DEVICES> s_diag_move_count = {};
+	const bool diag_should_log_move = (pointer_index < s_diag_move_count.size() && s_diag_move_count[pointer_index] < 5);
+
 	if (rm.usFlags & MOUSE_MOVE_ABSOLUTE)
 	{
 		const bool is_virtual_desktop = (rm.usFlags & MOUSE_VIRTUAL_DESKTOP) != 0;
@@ -377,16 +381,47 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 				pt.y += GetSystemMetrics(SM_YVIRTUALSCREEN);
 			}
 
+			// DIAG: log absolute position details
+			if (diag_should_log_move)
+			{
+				Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u ABS raw=(%ld,%ld) flags=0x%04X screen=%dx%d → pixel=(%ld,%ld) hwnd=%p render=%p",
+					mouse_idx, pointer_index, rm.lLastX, rm.lLastY, rm.usFlags, screen_w, screen_h,
+					pt.x, pt.y, coord_hwnd, render_hwnd);
+			}
+
 			if (ScreenToClient(coord_hwnd, &pt))
 			{
+				// DIAG: log client-space position
+				if (diag_should_log_move)
+				{
+					Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u ScreenToClient OK → client=(%ld,%ld)",
+						mouse_idx, pointer_index, pt.x, pt.y);
+					s_diag_move_count[pointer_index]++;
+				}
+
 				InputManager::UpdatePointerAbsolutePosition(
 					pointer_index,
 					static_cast<float>(pt.x),
 					static_cast<float>(pt.y));
 			}
+			else if (diag_should_log_move)
+			{
+				// DIAG: log ScreenToClient failure
+				Console.Warning("(DIAG:RawInput) mouse[%u] ptr=%u ScreenToClient FAILED (hwnd=%p err=%u)",
+					mouse_idx, pointer_index, coord_hwnd, GetLastError());
+				s_diag_move_count[pointer_index]++;
+			}
 		}
 	}
+	else if (diag_should_log_move)
+	{
+		// DIAG: log relative mouse event (lightgun should never be here)
+		Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u RELATIVE delta=(%ld,%ld) flags=0x%04X — IGNORED (not absolute)",
+			mouse_idx, pointer_index, rm.lLastX, rm.lLastY, rm.usFlags);
+		s_diag_move_count[pointer_index]++;
+	}
 
+	// DIAG: log button events
 	static constexpr struct
 	{
 		USHORT down_flag;
@@ -402,6 +437,9 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 	{
 		if (rm.usButtonFlags & bm.down_flag)
 		{
+			// DIAG: log button press
+			Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u button %u DOWN", mouse_idx, pointer_index, bm.button_index);
+
 			mouse.button_state |= (1u << bm.button_index);
 			InputManager::InvokeEvents(
 				MakeGenericControllerButtonKey(InputSourceType::RawInput, pointer_index, bm.button_index),
@@ -409,6 +447,9 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 		}
 		else if (rm.usButtonFlags & bm.up_flag)
 		{
+			// DIAG: log button release
+			Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u button %u UP", mouse_idx, pointer_index, bm.button_index);
+
 			mouse.button_state &= ~(1u << bm.button_index);
 			InputManager::InvokeEvents(
 				MakeGenericControllerButtonKey(InputSourceType::RawInput, pointer_index, bm.button_index),
