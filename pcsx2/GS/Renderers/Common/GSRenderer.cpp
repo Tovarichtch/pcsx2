@@ -89,13 +89,16 @@ bool GSRenderer::Merge(int field)
 	int y_offset[3] = { 0, 0, 0 };
 	const bool feedback_merge = m_regs->EXTWRITE.WRITE == 1;
 
-	// GunCon2 photodiode: assume dark until pixel sampling proves otherwise.
-	// Early returns (no displays, no textures) leave this true — correct behavior.
+	// GunCon2 photodiode: detect screen darkness via pixel sampling below.
+	// Do NOT set dark=true here — it creates a race with USB polling that reads
+	// the flag between this store and the pixel sampling result.
 	const bool gun_active = g_guncon2_count.load(std::memory_order_relaxed) > 0;
-	g_guncon2_display_dark.store(gun_active, std::memory_order_relaxed);
 
 	if (!PCRTCDisplays.PCRTCDisplays[0].enabled && !PCRTCDisplays.PCRTCDisplays[1].enabled)
 	{
+		// No displays active — treat as dark (correct for calibration blank frames).
+		if (gun_active)
+			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
 		m_real_size = GSVector2i(0, 0);
 		return false;
 	}
@@ -299,6 +302,8 @@ bool GSRenderer::Merge(int field)
 
 					if (lum >= GUNCON2_DARK_THRESHOLD)
 						g_guncon2_display_dark.store(false, std::memory_order_relaxed);
+					else
+						g_guncon2_display_dark.store(true, std::memory_order_relaxed);
 					m_photodiode_dl->Unmap();
 				}
 				else

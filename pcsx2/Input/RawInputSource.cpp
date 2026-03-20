@@ -252,7 +252,13 @@ bool RawInputSource::EnumerateRawMice()
 		{
 			wdevice_path.resize(name_size, L'\0');
 			if (GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, wdevice_path.data(), &name_size) != static_cast<UINT>(-1))
+			{
+				// Trim trailing null characters — Windows includes the null terminator in name_size,
+				// which would embed a \0 in the std::string and break comparisons with ini values.
+				while (!wdevice_path.empty() && wdevice_path.back() == L'\0')
+					wdevice_path.pop_back();
 				device_path = StringUtil::WideStringToUTF8String(wdevice_path);
+			}
 		}
 
 		if (device_path.empty())
