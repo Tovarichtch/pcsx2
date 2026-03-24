@@ -68,13 +68,109 @@ void GSRenderer::Reset(bool hardware_reset)
 	if (hardware_reset)
 		g_gs_device->ClearCurrent();
 
+	ResetPhotodiode();
 	GSState::Reset(hardware_reset);
 }
 
 void GSRenderer::Destroy()
 {
-	m_photodiode_dl.reset();
+	for (auto& dl : m_photodiode_ring)
+		dl.reset();
 	GSCapture::EndCapture();
+}
+
+void GSRenderer::ResetPhotodiode()
+{
+	// Invalidate ring buffer pipeline — forces 2 fresh frames before next readback.
+	// Download textures are kept alive (valid as long as the GPU device exists).
+	m_photodiode_frame = 0;
+}
+
+void GSRenderer::UpdatePhotodiode()
+{
+	GSTexture* current = g_gs_device->GetCurrent();
+
+	m_photodiode_diag_frame++;
+
+	if (current)
+	{
+		m_photodiode_valid_count++;
+		const u32 write_idx = m_photodiode_frame % PHOTODIODE_RING_SIZE;
+		const u32 read_idx = (m_photodiode_frame + 1) % PHOTODIODE_RING_SIZE;
+
+		// Lazy-create download texture for this ring slot.
+		if (!m_photodiode_ring[write_idx])
+		{
+			m_photodiode_ring[write_idx] = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
+			if (m_photodiode_ring[write_idx])
+				Console.WriteLn("(DIAG:Photodiode) Ring[%u] created OK", write_idx);
+		}
+
+		// Copy center pixel of merged PCRTC output into ring slot.
+		if (m_photodiode_ring[write_idx])
+		{
+			const int cx = current->GetWidth() / 2;
+			const int cy = current->GetHeight() / 2;
+			m_photodiode_ring[write_idx]->CopyFromTexture(
+				GSVector4i(0, 0, 1, 1), current,
+				GSVector4i(cx, cy, cx + 1, cy + 1), 0);
+		}
+
+		// Read back the slot written 2 frames ago (async — no GPU stall).
+		if (m_photodiode_frame >= 2 && m_photodiode_ring[read_idx])
+		{
+			m_photodiode_ring[read_idx]->Flush();
+
+			const GSVector4i rc(0, 0, 1, 1);
+			if (m_photodiode_ring[read_idx]->Map(rc))
+			{
+				const u32 px = *reinterpret_cast<const u32*>(m_photodiode_ring[read_idx]->GetMapPointer());
+				const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
+				const bool was_dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
+
+				// Hysteresis: two thresholds to prevent oscillation during fades.
+				//   bright->dark : lum <  PHOTODIODE_DARK_ENTRY  (fast entry for calibration blanks)
+				//   dark->bright : lum >  PHOTODIODE_DARK_EXIT   (hold dark through transition frames)
+				//   between      : hold current state
+				bool set_dark;
+				if (was_dark)
+					set_dark = (lum <= PHOTODIODE_DARK_EXIT);
+				else
+					set_dark = (lum < PHOTODIODE_DARK_ENTRY);
+
+				// DIAG: log every dark state transition.
+				if (set_dark != was_dark)
+					Console.WriteLn("(DIAG:Photodiode) PATH3: dark %s->%s frame=%u ring[%u] lum=%u px=0x%08X",
+						was_dark ? "TRUE" : "FALSE", set_dark ? "TRUE" : "FALSE",
+						m_photodiode_diag_frame, read_idx, lum, px);
+
+				// DIAG: periodic heartbeat every 120 frames.
+				if ((m_photodiode_diag_frame % 120) == 1)
+					Console.WriteLn("(DIAG:Photodiode) PATH3: frame=%u ring[%u] px=0x%08X lum=%u dark=%s valid=%u null=%u",
+						m_photodiode_diag_frame, read_idx, px, lum,
+						set_dark ? "YES" : "NO",
+						m_photodiode_valid_count, m_photodiode_null_count);
+
+				g_guncon2_display_dark.store(set_dark, std::memory_order_relaxed);
+				m_photodiode_ring[read_idx]->Unmap();
+			}
+		}
+
+		m_photodiode_frame++;
+	}
+	else
+	{
+		// GetCurrent() returned null on a frame where Merge() ran.
+		// This can happen during PCRTC mode switches. Dark flag is unchanged.
+		m_photodiode_null_count++;
+		if ((m_photodiode_null_count % 30) == 1)
+		{
+			const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
+			Console.WriteLn("(DIAG:Photodiode) PATH3-NULL: GetCurrent()=null frame=%u dark=%s (null=%u valid=%u)",
+				m_photodiode_diag_frame, dark ? "TRUE" : "FALSE",
+				m_photodiode_null_count, m_photodiode_valid_count);
+		}
+	}
 }
 
 void GSRenderer::UpdateRenderFixes()
@@ -90,15 +186,20 @@ bool GSRenderer::Merge(int field)
 	const bool feedback_merge = m_regs->EXTWRITE.WRITE == 1;
 
 	// GunCon2 photodiode: detect screen darkness via pixel sampling below.
-	// Do NOT set dark=true here — it creates a race with USB polling that reads
-	// the flag between this store and the pixel sampling result.
 	const bool gun_active = g_guncon2_count.load(std::memory_order_relaxed) > 0;
 
 	if (!PCRTCDisplays.PCRTCDisplays[0].enabled && !PCRTCDisplays.PCRTCDisplays[1].enabled)
 	{
-		// No displays active — treat as dark (correct for calibration blank frames).
+		// PATH1: PCRTC completely disabled — dark immediately.
 		if (gun_active)
+		{
+			if (!g_guncon2_display_dark.load(std::memory_order_relaxed))
+			{
+				Console.WriteLn("(DIAG:Photodiode) PATH1: PCRTC disabled -> DARK=TRUE");
+				ResetPhotodiode();
+			}
 			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
+		}
 		m_real_size = GSVector2i(0, 0);
 		return false;
 	}
@@ -139,6 +240,25 @@ bool GSRenderer::Merge(int field)
 	if (!tex[0] && !tex[1])
 	{
 		m_real_size = GSVector2i(0, 0);
+
+		// PATH2: PCRTC enabled but GetOutput()=null — screen is blank.
+		// No texture = no light = photodiode sees dark. Set immediately.
+		// When PATH3 resumes, the ring pipeline starts fresh (ResetPhotodiode).
+		if (gun_active)
+		{
+			if (!g_guncon2_display_dark.load(std::memory_order_relaxed))
+			{
+				Console.WriteLn("(DIAG:Photodiode) PATH2: GetOutput null -> DARK=TRUE — PCRTC[0].en=%d PCRTC[1].en=%d",
+					PCRTCDisplays.PCRTCDisplays[0].enabled, PCRTCDisplays.PCRTCDisplays[1].enabled);
+				ResetPhotodiode();
+			}
+			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
+			m_photodiode_path2_count++;
+			if ((m_photodiode_path2_count % 30) == 1)
+				Console.WriteLn("(DIAG:Photodiode) PATH2: GetOutput null (count=%u) — PCRTC[0].en=%d PCRTC[1].en=%d",
+					m_photodiode_path2_count,
+					PCRTCDisplays.PCRTCDisplays[0].enabled, PCRTCDisplays.PCRTCDisplays[1].enabled);
+		}
 
 		// Clear out the MAD buffer as some remnants of the previously shown frame came be left over, causing a flash for one frame.
 		if (GSConfig.InterlaceMode == GSInterlaceMode::Automatic || GSConfig.InterlaceMode >= GSInterlaceMode::AdaptiveTFF)
@@ -249,86 +369,9 @@ bool GSRenderer::Merge(int field)
 	const u32 c = (m_regs->BGCOLOR.U32[0] & 0x00FFFFFFu) | (m_regs->PMODE.ALP << 24);
 	g_gs_device->Merge(tex, src_gs_read, dst, fs, m_regs->PMODE, m_regs->EXTBUF, c);
 
-	// GunCon2 photodiode: sample center pixel to detect black-frame calibration.
-	// Sum of R+G+B < threshold means the screen is dark.
+	// GunCon2 photodiode: sample center pixel to detect calibration blanks.
 	if (gun_active)
-	{
-		static constexpr u32 GUNCON2_DARK_THRESHOLD = 10;
-		GSTexture* current = g_gs_device->GetCurrent();
-
-		// DIAG: photodiode state tracking (rate-limited to every 120 frames)
-		static u32 s_diag_frame_counter = 0;
-		static bool s_diag_logged_creation = false;
-		s_diag_frame_counter++;
-
-		if (current)
-		{
-			if (!m_photodiode_dl)
-			{
-				m_photodiode_dl = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
-				// DIAG: log download texture creation result
-				if (!s_diag_logged_creation)
-				{
-					Console.WriteLn("(DIAG:Photodiode) CreateDownloadTexture: %s (current=%dx%d fmt=%d)",
-						m_photodiode_dl ? "OK" : "FAILED",
-						current->GetWidth(), current->GetHeight(), static_cast<int>(current->GetFormat()));
-					s_diag_logged_creation = true;
-				}
-			}
-			if (m_photodiode_dl)
-			{
-				const int cx = current->GetWidth() / 2;
-				const int cy = current->GetHeight() / 2;
-				m_photodiode_dl->CopyFromTexture(
-					GSVector4i(0, 0, 1, 1), current,
-					GSVector4i(cx, cy, cx + 1, cy + 1), 0);
-				m_photodiode_dl->Flush();
-
-				const GSVector4i rc(0, 0, 1, 1);
-				if (m_photodiode_dl->Map(rc))
-				{
-					const u32 px = *reinterpret_cast<const u32*>(m_photodiode_dl->GetMapPointer());
-					const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
-
-					// DIAG: log pixel value and dark state every 120 frames
-					if ((s_diag_frame_counter % 120) == 1)
-					{
-						const bool is_dark = (lum < GUNCON2_DARK_THRESHOLD);
-						Console.WriteLn("(DIAG:Photodiode) frame=%u px=0x%08X R=%u G=%u B=%u lum=%u threshold=%u dark=%s",
-							s_diag_frame_counter, px,
-							px & 0xFFu, (px >> 8) & 0xFFu, (px >> 16) & 0xFFu,
-							lum, GUNCON2_DARK_THRESHOLD, is_dark ? "YES" : "NO");
-					}
-
-					if (lum >= GUNCON2_DARK_THRESHOLD)
-						g_guncon2_display_dark.store(false, std::memory_order_relaxed);
-					else
-						g_guncon2_display_dark.store(true, std::memory_order_relaxed);
-					m_photodiode_dl->Unmap();
-				}
-				else
-				{
-					// DIAG: log Map failure (once)
-					static bool s_diag_map_fail = false;
-					if (!s_diag_map_fail)
-					{
-						Console.Warning("(DIAG:Photodiode) Map() FAILED on download texture");
-						s_diag_map_fail = true;
-					}
-				}
-			}
-		}
-		else
-		{
-			// DIAG: log when GetCurrent() returns null (once)
-			static bool s_diag_no_current = false;
-			if (!s_diag_no_current)
-			{
-				Console.Warning("(DIAG:Photodiode) GetCurrent() returned null");
-				s_diag_no_current = true;
-			}
-		}
-	}
+		UpdatePhotodiode();
 
 	if (isReallyInterlaced() && GSConfig.InterlaceMode != GSInterlaceMode::Off)
 	{
