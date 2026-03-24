@@ -58,6 +58,7 @@ Pcsx2Config::GSOptions GSConfig;
 
 std::atomic<bool> g_guncon2_display_dark{false};
 std::atomic<int> g_guncon2_count{0};
+std::atomic<u32> g_guncon2_dark_threshold{0}; // 0 = use defaults (entry=44, exit=80). Per-game: entry=threshold, exit=threshold*2.
 
 static GSRendererType GSCurrentRenderer;
 
