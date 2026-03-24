@@ -60,39 +60,40 @@ namespace usb_lightgun
 		float scale_x, scale_y;
 		u32 center_x, center_y;
 		u32 screen_width, screen_height;
+		bool force_2point; // Auto-inject Trigger+C offscreen at boot for 2-Point Adjustment (TC3).
 	};
 
 	static constexpr const GameConfig s_game_config[] = {
-		{"SLES-50930", 90.25f, 94.5f, 390, 132, 640, 256}, // Dino Stalker (E, English)
-		{"SLES-51095", 90.25f, 94.5f, 390, 132, 640, 256}, // Dino Stalker (E, French)
-		{"SLES-51096", 90.25f, 94.5f, 390, 132, 640, 256}, // Dino Stalker (E, German)
-		{"SLUS-20485", 90.25f, 92.5f, 390, 132, 640, 240}, // Dino Stalker (U)
-		{"SLUS-20389", 89.25f, 93.5f, 422, 141, 640, 240}, // Endgame (U)
-		{"SLES-50936", 112.0f, 100.0f, 320, 120, 512, 256}, // Endgame (E) (Guncon2 needs to be connected to USB port 2)
-		{"SLPM-65139", 90.0f, 91.5f, 320, 120, 640, 240}, // Gun Survivor 3: Dino Crisis (J)
-		{"SLES-52620", 89.5f, 112.3f, 390, 147, 640, 256}, // Guncom 2 (E)
-		{"SLES-51289", 84.5f, 89.0f, 456, 164, 640, 256}, // Gunfighter 2 - Jesse James (E)
-		{"SLPS-25165", 90.25f, 98.0f, 390, 138, 640, 240}, // Gunvari Collection (J) (480i)
-		// {"SLPS-25165", 86.75f, 96.0f, 454, 164, 640, 256}, // Gunvari Collection (J) (480p)
-		{"SCES-50889", 90.25f, 94.5f, 390, 169, 640, 256}, // Ninja Assault (E)
-		{"SLPS-20218", 90.0f, 92.0f, 320, 134, 640, 240}, // Ninja Assault (J)
-		{"SLUS-20492", 90.25f, 92.5f, 390, 132, 640, 240}, // Ninja Assault (U)
-		{"SLES-50650", 84.75f, 96.0f, 454, 164, 640, 240}, // Resident Evil Survivor 2 (E)
-		{"SLES-51448", 90.25f, 95.0f, 420, 132, 640, 240}, // Resident Evil - Dead Aim (E)
-		{"SLUS-20669", 90.25f, 93.5f, 420, 132, 640, 240}, // Resident Evil - Dead Aim (U)
-		{"SLUS-20619", 90.25f, 91.75f, 453, 154, 640, 256}, // Starsky & Hutch (U)
-		{"SCES-50300", 90.25f, 102.75f, 390, 138, 640, 256}, // Time Crisis II (E)
-		{"SLUS-20219", 90.25f, 97.5f, 390, 154, 640, 240}, // Time Crisis 2 (U)
-		{"SCES-51844", 90.25f, 102.75f, 390, 138, 640, 256}, // Time Crisis 3 (E)
-		{"SLUS-20645", 90.25f, 97.5f, 390, 154, 640, 240}, // Time Crisis 3 (U)
-		{"SCES-52530", 90.25f, 99.0f, 390, 153, 640, 256}, // Crisis Zone (E)
-		{"SLUS-20927", 90.25f, 99.0f, 390, 153, 640, 240}, // Time Crisis - Crisis Zone (U) (480i)
-		// {"SLUS-20927", 94.5f, 104.75f, 423, 407, 768, 768}, // Time Crisis - Crisis Zone (U) (480p)
-		{"SCES-50411", 89.8f, 99.9f, 421, 138, 640, 256}, // Vampire Night (E)
-		{"SLPS-25077", 90.0f, 97.5f, 422, 118, 640, 240}, // Vampire Night (J)
-		{"SLUS-20221", 89.8f, 102.5f, 422, 124, 640, 228}, // Vampire Night (U)
-		{"SLES-51229", 110.15f, 100.0f, 433, 159, 512, 256}, // Virtua Cop - Elite Edition (E,J) (480i)
-		// {"SLES-51229", 85.75f, 92.0f, 456, 164, 640, 256}, // Virtua Cop - Elite Edition (E,J) (480p)
+		{"SLES-50930", 90.25f, 94.5f, 390, 132, 640, 256, false}, // Dino Stalker (E, English)
+		{"SLES-51095", 90.25f, 94.5f, 390, 132, 640, 256, false}, // Dino Stalker (E, French)
+		{"SLES-51096", 90.25f, 94.5f, 390, 132, 640, 256, false}, // Dino Stalker (E, German)
+		{"SLUS-20485", 90.25f, 92.5f, 390, 132, 640, 240, false}, // Dino Stalker (U)
+		{"SLUS-20389", 89.25f, 93.5f, 422, 141, 640, 240, false}, // Endgame (U)
+		{"SLES-50936", 112.0f, 100.0f, 320, 120, 512, 256, false}, // Endgame (E) (Guncon2 needs to be connected to USB port 2)
+		{"SLPM-65139", 90.0f, 91.5f, 320, 120, 640, 240, false}, // Gun Survivor 3: Dino Crisis (J)
+		{"SLES-52620", 89.5f, 112.3f, 390, 147, 640, 256, false}, // Guncom 2 (E)
+		{"SLES-51289", 84.5f, 89.0f, 456, 164, 640, 256, false}, // Gunfighter 2 - Jesse James (E)
+		{"SLPS-25165", 90.25f, 98.0f, 390, 138, 640, 240, false}, // Gunvari Collection (J) (480i)
+		// {"SLPS-25165", 86.75f, 96.0f, 454, 164, 640, 256, false}, // Gunvari Collection (J) (480p)
+		{"SCES-50889", 90.25f, 94.5f, 390, 169, 640, 256, true},  // Ninja Assault (E) — needs 2-Point init
+		{"SLPS-20218", 90.0f, 92.0f, 320, 134, 640, 240, true},  // Ninja Assault (J) — needs 2-Point init
+		{"SLUS-20492", 90.25f, 92.5f, 390, 132, 640, 240, true},  // Ninja Assault (U) — needs 2-Point init
+		{"SLES-50650", 84.75f, 96.0f, 454, 164, 640, 240, false}, // Resident Evil Survivor 2 (E)
+		{"SLES-51448", 90.25f, 95.0f, 420, 132, 640, 240, false}, // Resident Evil - Dead Aim (E)
+		{"SLUS-20669", 90.25f, 93.5f, 420, 132, 640, 240, false}, // Resident Evil - Dead Aim (U)
+		{"SLUS-20619", 90.25f, 91.75f, 453, 154, 640, 256, false}, // Starsky & Hutch (U)
+		{"SCES-50300", 90.25f, 102.75f, 390, 138, 640, 256, false}, // Time Crisis II (E)
+		{"SLUS-20219", 90.25f, 97.5f, 390, 154, 640, 240, false}, // Time Crisis 2 (U)
+		{"SCES-51844", 90.25f, 102.75f, 390, 138, 640, 256, true},  // Time Crisis 3 (E) — needs 2-Point init
+		{"SLUS-20645", 90.25f, 97.5f, 390, 154, 640, 240, true},  // Time Crisis 3 (U) — needs 2-Point init
+		{"SCES-52530", 90.25f, 99.0f, 390, 153, 640, 256, false}, // Crisis Zone (E)
+		{"SLUS-20927", 90.25f, 99.0f, 390, 153, 640, 240, false}, // Time Crisis - Crisis Zone (U) (480i)
+		// {"SLUS-20927", 94.5f, 104.75f, 423, 407, 768, 768, false}, // Time Crisis - Crisis Zone (U) (480p)
+		{"SCES-50411", 89.8f, 99.9f, 421, 138, 640, 256, false}, // Vampire Night (E)
+		{"SLPS-25077", 90.0f, 97.5f, 422, 118, 640, 240, false}, // Vampire Night (J)
+		{"SLUS-20221", 89.8f, 102.5f, 422, 124, 640, 228, false}, // Vampire Night (U)
+		{"SLES-51229", 110.15f, 100.0f, 433, 159, 512, 256, false}, // Virtua Cop - Elite Edition (E,J) (480i)
+		// {"SLES-51229", 85.75f, 92.0f, 456, 164, 640, 256, false}, // Virtua Cop - Elite Edition (E,J) (480p)
 	};
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
@@ -160,6 +161,11 @@ namespace usb_lightgun
 		u16 calibration_timer = 0;
 		s16 calibration_pos_x = 0;
 		s16 calibration_pos_y = 0;
+
+		// TC3 progressive scan: auto-inject Trigger+C offscreen to force 2-Point mode.
+		bool needs_2point_init = false;
+		u32 init_2point_state = 0;   // 0=wait dark, 1=in dark, 2=injecting
+		u32 init_2point_polls = 0;
 
 		bool auto_config_done = false;
 
@@ -245,16 +251,26 @@ namespace usb_lightgun
 			us->auto_config_done = true;
 		}
 
-		DevCon.WriteLn("guncon2: req %04X val: %04X idx: %04X len: %d\n", request, value, index, length);
+		// DIAG: log all control requests
+		Console.WriteLn("(DIAG:GunCon2) Port %u CTRL req=0x%04X val=0x%04X idx=0x%04X len=%d",
+			us->port, request, value, index, length);
+
 		if (usb_desc_handle_control(dev, p, request, value, index, length, data) >= 0)
 			return;
 
 		if (request == (ClassInterfaceOutRequest | 0x09))
 		{
+			const s16 old_px = us->param_x;
+			const s16 old_py = us->param_y;
+			const u16 old_mode = us->param_mode;
 			us->param_x = static_cast<u16>(data[0]) | (static_cast<u16>(data[1]) << 8);
 			us->param_y = static_cast<u16>(data[2]) | (static_cast<u16>(data[3]) << 8);
 			us->param_mode = static_cast<u16>(data[4]) | (static_cast<u16>(data[5]) << 8);
-			DevCon.WriteLn("GunCon2 Set Param %04X %d %d", us->param_mode, us->param_x, us->param_y);
+			// DIAG: log every SetParam — this is the game writing calibration offsets
+			Console.WriteLn("(DIAG:GunCon2) Port %u SET_PARAM mode=0x%04X param_x=%d param_y=%d (was mode=0x%04X x=%d y=%d) raw=[%02X %02X %02X %02X %02X %02X]",
+				us->port, us->param_mode, us->param_x, us->param_y,
+				old_mode, old_px, old_py,
+				data[0], data[1], data[2], data[3], data[4], data[5]);
 			return;
 		}
 
@@ -292,15 +308,140 @@ namespace usb_lightgun
 						out.pos_y = 0;
 					}
 
+					const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
 					// Photodiode: report (0,0) when screen is dark.
-					if (g_guncon2_display_dark.load(std::memory_order_relaxed))
+					if (dark)
 					{
-						// DIAG: log dark detection (rate-limited, once per 60 polls)
-						static u32 s_diag_dark_count = 0;
-						if ((s_diag_dark_count++ % 60) == 0)
-							Console.WriteLn("(DIAG:GunCon2) Port %u photodiode DARK — reporting (0,0) [count=%u]", us->port, s_diag_dark_count);
 						out.pos_x = 0;
 						out.pos_y = 0;
+					}
+
+					// TC3/NA 2-Point Adjustment: auto-inject Trigger+C offscreen.
+					// These Namco games in progressive scan mode require Trigger+C
+					// while aiming offscreen to enable 2-Point calibration. Without
+					// it, the standard calibration path is dead (flash_enable=0).
+					// We inject after every dark→light transition until the game
+					// confirms calibration succeeded (param_x != 0 from SET_PARAM).
+					// This is robust regardless of region, boot sequence, or logos.
+					if (us->needs_2point_init)
+					{
+						// Calibration succeeded — stop injecting.
+						if (us->param_x != 0)
+						{
+							us->needs_2point_init = false;
+							us->init_2point_state = 0;
+							Console.WriteLn("(GunCon2) Port %u: 2-Point calibration confirmed (param_x=%d)", us->port, us->param_x);
+						}
+						else switch (us->init_2point_state)
+						{
+						case 0: // Waiting for a dark frame
+							if (dark)
+								us->init_2point_state = 1;
+							break;
+						case 1: // In dark, waiting for it to end
+							if (!dark)
+							{
+								us->init_2point_state = 2;
+								us->init_2point_polls = 0;
+								Console.WriteLn("(GunCon2) Port %u: injecting Trigger+C offscreen for 2-Point init", us->port);
+							}
+							break;
+						case 2: // Injecting Trigger+C with pos=(0,0)
+							out.buttons &= ~(1u << BID_TRIGGER); // active low: clear bit = pressed
+							out.buttons &= ~(1u << BID_C);
+							out.pos_x = 0;
+							out.pos_y = 0;
+							if (++us->init_2point_polls >= 60)
+							{
+								// Go back to waiting — will retry on next dark→light.
+								us->init_2point_state = 0;
+								Console.WriteLn("(GunCon2) Port %u: 2-Point injection done, waiting for calibration...", us->port);
+							}
+							break;
+						}
+					}
+
+					// DIAG: comprehensive USB poll logging
+					{
+						// Track state for transition detection
+						static u32 s_poll_count[2] = {};
+						static u32 s_prev_buttons[2] = {0xFFFF, 0xFFFF};
+						static s16 s_prev_pos_x[2] = {};
+						static s16 s_prev_pos_y[2] = {};
+						static bool s_prev_dark[2] = {};
+						static s16 s_prev_param_x[2] = {};
+						static s16 s_prev_param_y[2] = {};
+						static u16 s_prev_param_mode[2] = {};
+
+						const u32 idx = (us->port < 2) ? us->port : 0;
+						s_poll_count[idx]++;
+
+						const bool trigger_now = !(out.buttons & (1u << BID_TRIGGER));
+						const bool trigger_prev = !(s_prev_buttons[idx] & (1u << BID_TRIGGER));
+						const bool buttons_changed = (out.buttons != s_prev_buttons[idx]);
+						const bool dark_changed = (dark != s_prev_dark[idx]);
+						const bool pos_became_zero = (out.pos_x == 0 && s_prev_pos_x[idx] != 0);
+						const bool pos_became_nonzero = (out.pos_x != 0 && s_prev_pos_x[idx] == 0);
+						const bool param_changed = (us->param_x != s_prev_param_x[idx] ||
+							us->param_y != s_prev_param_y[idx] ||
+							us->param_mode != s_prev_param_mode[idx]);
+
+						// Log on: any transition, or every 120 polls
+						const bool should_log = buttons_changed || dark_changed ||
+							pos_became_zero || pos_became_nonzero || param_changed ||
+							(s_poll_count[idx] % 120) == 1;
+
+						if (should_log)
+						{
+							// Decode button bits for readability
+							// Active low: 0 = pressed. We show pressed buttons.
+							const u16 pressed = ~out.buttons & 0xFFFF;
+							Console.WriteLn(
+								"(DIAG:GunCon2) Port %u poll #%u | btn=0x%04X (pressed=0x%04X%s%s%s%s%s%s) "
+								"pos=(%d,%d) raw_calc=(%d,%d) dark=%d | param=(x=%d y=%d mode=0x%04X) | ptr_idx=%u",
+								us->port, s_poll_count[idx],
+								out.buttons, pressed,
+								(pressed & (1u << BID_TRIGGER)) ? " TRIG" : "",
+								(pressed & (1u << BID_A)) ? " A" : "",
+								(pressed & (1u << BID_B)) ? " B" : "",
+								(pressed & (1u << BID_C)) ? " C" : "",
+								(pressed & (1u << BID_START)) ? " START" : "",
+								(pressed & (1u << BID_SELECT)) ? " SEL" : "",
+								out.pos_x, out.pos_y,
+								pos_x, pos_y,
+								dark ? 1 : 0,
+								us->param_x, us->param_y, us->param_mode,
+								us->pointer_index);
+						}
+
+						// Log trigger transitions explicitly
+						if (trigger_now != trigger_prev)
+						{
+							Console.WriteLn(
+								"(DIAG:GunCon2) Port %u TRIGGER %s at pos=(%d,%d) dark=%d poll #%u",
+								us->port, trigger_now ? "DOWN" : "UP",
+								out.pos_x, out.pos_y, dark ? 1 : 0,
+								s_poll_count[idx]);
+						}
+
+						// Log dark transitions explicitly
+						if (dark_changed)
+						{
+							Console.WriteLn(
+								"(DIAG:GunCon2) Port %u DARK %s at poll #%u pos_before=(%d,%d) pos_after=(%d,%d)",
+								us->port, dark ? "ON" : "OFF",
+								s_poll_count[idx],
+								s_prev_pos_x[idx], s_prev_pos_y[idx],
+								out.pos_x, out.pos_y);
+						}
+
+						s_prev_buttons[idx] = out.buttons;
+						s_prev_pos_x[idx] = out.pos_x;
+						s_prev_pos_y[idx] = out.pos_y;
+						s_prev_dark[idx] = dark;
+						s_prev_param_x[idx] = us->param_x;
+						s_prev_param_y[idx] = us->param_y;
+						s_prev_param_mode[idx] = us->param_mode;
 					}
 
 					usb_packet_copy(p, &out, sizeof(out));
@@ -359,6 +500,13 @@ namespace usb_lightgun
 			center_y = static_cast<float>(gc.center_y);
 			screen_width = gc.screen_width;
 			screen_height = gc.screen_height;
+
+			if (gc.force_2point)
+			{
+				needs_2point_init = true;
+				Console.WriteLn(fmt::format("(GunCon2) Port {}: 2-Point Adjustment will be auto-injected at boot", port));
+			}
+
 			return;
 		}
 
