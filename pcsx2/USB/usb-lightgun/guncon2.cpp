@@ -314,15 +314,28 @@ namespace usb_lightgun
 				us->port, us->param_mode, us->param_x, us->param_y,
 				old_mode, old_px, old_py);
 
-			// Calibration lock: deferred activation.
-			// ANY SET_PARAM after init → enter PENDING (or reset settle timer).
-			// After LOCK_SETTLE_POLLS with no SET_PARAM → LOCKED → dark blocked.
-			// lock_permanent games: ALSO lock immediately on param_x change. Never unlock.
+			// Calibration lock: two separate paths.
+			// lock_permanent (CZ): immediate lock on param_x change. x=0 spam ignored. Never unlocks.
+			// All other games: settle timer — PENDING on SET_PARAM, LOCKED after LOCK_SETTLE_POLLS idle.
 			if (us->param_x_initialized)
 			{
-				if (us->calibration_locked)
+				if (us->lock_permanent)
 				{
-					if (!us->lock_permanent && !us->photodiode_disabled)
+					// CZ: lock ONLY when param_x changes from initial value.
+					// The x=0 spam at boot is normal — ignore it entirely.
+					// Once locked, all further SET_PARAMs are ignored (permanent).
+					if (!us->calibration_locked && us->param_x != us->initial_param_x)
+					{
+						us->calibration_locked = true;
+						us->calibration_pending = false;
+						Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [permanent/immediate] (param_x: %d -> %d)",
+							us->port, us->initial_param_x, us->param_x);
+					}
+				}
+				else if (!us->photodiode_disabled)
+				{
+					// All other games: settle timer via PENDING.
+					if (us->calibration_locked)
 					{
 						// Re-calibration: unlock and re-enter pending.
 						us->calibration_locked = false;
@@ -331,34 +344,20 @@ namespace usb_lightgun
 						Console.WriteLn("(GunCon2) Port %u: calibration UNLOCKED (SET_PARAM received, re-calibrating)",
 							us->port);
 					}
-					// lock_permanent / photodiode_disabled: ignore SET_PARAM after lock.
-				}
-				else if (!us->photodiode_disabled)
-				{
-					// Immediate lock for lock_permanent games on param_x change.
-					if (us->lock_permanent && us->param_x != us->initial_param_x)
+					else if (!us->calibration_pending)
 					{
-						us->calibration_locked = true;
-						us->calibration_pending = false;
-						Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [permanent/immediate] (param_x: %d -> %d)",
-							us->port, us->initial_param_x, us->param_x);
+						us->calibration_pending = true;
+						us->pending_poll_count = 0;
+						Console.WriteLn("(GunCon2) Port %u: calibration PENDING (SET_PARAM received, param_x=%d)",
+							us->port, us->param_x);
 					}
-					// ALL games: settle timer via PENDING.
-					if (!us->calibration_locked)
+					else
 					{
-						if (!us->calibration_pending)
-						{
-							us->calibration_pending = true;
-							us->pending_poll_count = 0;
-							Console.WriteLn("(GunCon2) Port %u: calibration PENDING (SET_PARAM received, param_x=%d)",
-								us->port, us->param_x);
-						}
-						else
-						{
-							us->pending_poll_count = 0;
-						}
+						// Already pending: reset settle timer.
+						us->pending_poll_count = 0;
 					}
 				}
+				// photodiode_disabled (GF2): already locked at boot, ignore all SET_PARAMs.
 			}
 			else
 			{
@@ -437,11 +436,11 @@ namespace usb_lightgun
 							out.pos_y = 0;
 							us->dark_inject_active--;
 						}
-						else if (!us->lock_permanent && !us->param_x_initialized && dark)
+						else if (!us->calibration_locked && dark)
 						{
 							// Photodiode fallback: before calibration lock, let the vanilla
 							// photodiode pass dark through for boot/init screen calibration.
-							// Blocked after lock to prevent "blouse noire" on dark scenes.
+							// After lock, dark is blocked — prevents false darks on dark scenes.
 							out.pos_x = 0;
 							out.pos_y = 0;
 						}
