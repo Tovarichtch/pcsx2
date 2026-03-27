@@ -317,25 +317,12 @@ namespace usb_lightgun
 			// Calibration lock: deferred activation.
 			// ANY SET_PARAM after init → enter PENDING (or reset settle timer).
 			// After LOCK_SETTLE_POLLS with no SET_PARAM → LOCKED → dark blocked.
-			// Any SET_PARAM while LOCKED → UNLOCK + re-enter PENDING (re-calibration).
-			// CZ (lock_permanent): immediate lock on param_x change, never unlocks.
+			// lock_permanent games: ALSO lock immediately on param_x change. Never unlock.
 			if (us->param_x_initialized)
 			{
-				if (us->lock_permanent)
+				if (us->calibration_locked)
 				{
-					// CZ: immediate permanent lock on param_x change.
-					// SET_PARAM x=0 spam after lock is ignored (permanent).
-					if (!us->calibration_locked && us->param_x != us->initial_param_x)
-					{
-						us->calibration_locked = true;
-						Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [permanent/immediate] (param_x: %d -> %d)",
-							us->port, us->initial_param_x, us->param_x);
-					}
-				}
-				else if (!us->photodiode_disabled)
-				{
-					// All other games: any SET_PARAM manages the settle timer.
-					if (us->calibration_locked)
+					if (!us->lock_permanent && !us->photodiode_disabled)
 					{
 						// Re-calibration: unlock and re-enter pending.
 						us->calibration_locked = false;
@@ -344,18 +331,32 @@ namespace usb_lightgun
 						Console.WriteLn("(GunCon2) Port %u: calibration UNLOCKED (SET_PARAM received, re-calibrating)",
 							us->port);
 					}
-					else if (!us->calibration_pending)
+					// lock_permanent / photodiode_disabled: ignore SET_PARAM after lock.
+				}
+				else if (!us->photodiode_disabled)
+				{
+					// Immediate lock for lock_permanent games on param_x change.
+					if (us->lock_permanent && us->param_x != us->initial_param_x)
 					{
-						// First SET_PARAM since boot/unlock: enter pending.
-						us->calibration_pending = true;
-						us->pending_poll_count = 0;
-						Console.WriteLn("(GunCon2) Port %u: calibration PENDING (SET_PARAM received, param_x=%d)",
-							us->port, us->param_x);
+						us->calibration_locked = true;
+						us->calibration_pending = false;
+						Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [permanent/immediate] (param_x: %d -> %d)",
+							us->port, us->initial_param_x, us->param_x);
 					}
-					else
+					// ALL games: settle timer via PENDING.
+					if (!us->calibration_locked)
 					{
-						// Already pending: reset settle timer.
-						us->pending_poll_count = 0;
+						if (!us->calibration_pending)
+						{
+							us->calibration_pending = true;
+							us->pending_poll_count = 0;
+							Console.WriteLn("(GunCon2) Port %u: calibration PENDING (SET_PARAM received, param_x=%d)",
+								us->port, us->param_x);
+						}
+						else
+						{
+							us->pending_poll_count = 0;
+						}
 					}
 				}
 			}
