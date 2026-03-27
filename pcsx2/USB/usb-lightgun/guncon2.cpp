@@ -405,7 +405,7 @@ namespace usb_lightgun
 
 					const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
 
-					if ((us->dark_delay > 0 || us->dark_duration > 0) && (!us->calibration_locked || !us->lock_permanent))
+					if (us->dark_delay > 0 || us->dark_duration > 0)
 					{
 						// Trigger-delayed dark injection — per-game optimized timing.
 						// On trigger press, wait dark_delay polls then force pos=(0,0) for
