@@ -462,10 +462,11 @@ namespace usb_lightgun
 					}
 					else
 					{
-						// Standard photodiode for games without dark_delay, or after lock.
-						// CZ (lock_permanent): dark blocked after lock — only needed for calibration.
-						// VC (!lock_permanent): dark passes through even after lock — needed for gameplay shots.
-						if (dark && (!us->calibration_locked || !us->lock_permanent))
+						// Standard photodiode for games without dark_inject (NA, TC2, etc).
+						// Before calibration lock: dark → pos=(0,0) for calibration to work.
+						// After calibration lock: dark BLOCKED for ALL games — prevents false
+						// darks from dark scenes/interlaced flicker causing random reloads.
+						if (dark && !us->calibration_locked)
 						{
 							out.pos_x = 0;
 							out.pos_y = 0;
