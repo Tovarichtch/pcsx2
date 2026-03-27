@@ -6,6 +6,7 @@
 #include "IconsPromptFont.h"
 #include "ImGui/ImGuiManager.h"
 #include "Input/InputManager.h"
+#include "Memory.h"
 #include "StateWrapper.h"
 #include "USB/USB.h"
 #include "USB/deviceproxy.h"
@@ -212,6 +213,11 @@ namespace usb_lightgun
 		u16 dark_duration = 0; // Set from GameConfig.
 
 		static constexpr u32 LOCK_SETTLE_POLLS = 750; // ~6 seconds at 125Hz USB poll rate — no SET_PARAM activity = calibration done
+
+		// DIAG: comprehensive state tracking for debugging
+		bool diag_trigger_was_down = false;
+		u32 diag_poll_count = 0;
+		bool diag_is_cz_us = false; // Gate CZ-specific memRead32 on SLUS-20927 addresses
 
 		bool auto_config_done = false;
 
@@ -519,6 +525,107 @@ namespace usb_lightgun
 						}
 					}
 
+					// ================================================================
+					// DIAG: comprehensive trigger/inject/game-state logging
+					// ================================================================
+					us->diag_poll_count++;
+					const bool trigger_down = (us->button_state & (1u << BID_TRIGGER)) != 0;
+					const bool trigger_edge_down = trigger_down && !us->diag_trigger_was_down;
+					const bool trigger_edge_up = !trigger_down && us->diag_trigger_was_down;
+
+					// CZ US game RAM reads (only when serial matches).
+					// Addresses from ELF reverse engineering (Ingénieur - PS2 sessions).
+					u32 g_dispatch = 0, g_flash_timer = 0, g_flash_enable = 0;
+					u32 g_calib_state = 0, g_gameplay = 0, g_fire_timer = 0;
+					u32 g_trigger_flag = 0, g_screen_x = 0, g_held_buttons = 0;
+					u32 g_base_delay = 0, g_extra_delay = 0;
+					if (us->diag_is_cz_us)
+					{
+						// Global vars (gp=0x0045C4F0 relative)
+						g_dispatch     = memRead32(0x00456E40); // dispatch_state: 5=gameplay, 6/7=degraded
+						g_flash_timer  = memRead32(0x00456DFC); // flash countdown 16→0
+						g_flash_enable = memRead32(0x00456E10); // 1=flash active this frame
+						g_base_delay   = memRead32(0x00456E18); // fire_timer base (init=2)
+						g_extra_delay  = memRead32(0x00456E14); // fire_timer extra (init=2)
+						// Per-player gun_state P0 (base=0x7FFC30, stride=0x3C)
+						g_calib_state  = memRead32(0x007FFC68); // +0x38: 0→8, SET_PARAM at 4
+						g_gameplay     = memRead32(0x007FFC54); // +0x24: 1=gameplay active
+						g_fire_timer   = memRead32(0x007FFC40); // +0x10: fire countdown
+						g_trigger_flag = memRead32(0x007FFC44); // +0x14: 1=edge trigger
+						g_screen_x     = memRead32(0x007FFC4C); // +0x1C: -1=dark
+						g_held_buttons = memRead32(0x007FFC58); // held buttons bitmask
+					}
+
+					// Log trigger down with FULL state dump.
+					if (trigger_edge_down)
+					{
+						Console.WriteLn("(DIAG:TRIGGER) Port %u poll=%u DOWN | out=(%d,%d) calc=(%d,%d) | dark=%d locked=%d pending=%d perm=%d | inject: dly=%u dur=%u cd=%u act=%u fired=%d",
+							us->port, us->diag_poll_count, out.pos_x, out.pos_y, pos_x, pos_y,
+							dark ? 1 : 0, us->calibration_locked ? 1 : 0, us->calibration_pending ? 1 : 0,
+							us->lock_permanent ? 1 : 0,
+							us->dark_delay, us->dark_duration, us->dark_inject_countdown, us->dark_inject_active,
+							us->dark_inject_fired ? 1 : 0);
+						if (us->diag_is_cz_us)
+						{
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | calib=%u gameplay=%u fire_tmr=%u trig_flag=%u scrn_x=%d held=0x%X | base_dly=%u extra_dly=%u",
+								us->port, us->diag_poll_count,
+								g_dispatch, g_flash_timer, g_flash_enable,
+								g_calib_state, g_gameplay, g_fire_timer, g_trigger_flag,
+								static_cast<s32>(g_screen_x), g_held_buttons,
+								g_base_delay, g_extra_delay);
+						}
+					}
+
+					// Log trigger up.
+					if (trigger_edge_up)
+					{
+						Console.WriteLn("(DIAG:TRIGGER) Port %u poll=%u UP | out=(%d,%d) | dark=%d locked=%d",
+							us->port, us->diag_poll_count, out.pos_x, out.pos_y,
+							dark ? 1 : 0, us->calibration_locked ? 1 : 0);
+						if (us->diag_is_cz_us)
+						{
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | gameplay=%u fire_tmr=%u scrn_x=%d",
+								us->port, us->diag_poll_count,
+								g_dispatch, g_flash_timer, g_flash_enable,
+								g_gameplay, g_fire_timer, static_cast<s32>(g_screen_x));
+						}
+					}
+					us->diag_trigger_was_down = trigger_down;
+
+					// Log every poll during dark_inject countdown or active.
+					if (us->dark_inject_countdown > 0 || us->dark_inject_active > 0)
+					{
+						Console.WriteLn("(DIAG:INJECT) Port %u poll=%u | cd=%u act=%u | out=(%d,%d) | dark=%d locked=%d",
+							us->port, us->diag_poll_count,
+							us->dark_inject_countdown, us->dark_inject_active,
+							out.pos_x, out.pos_y, dark ? 1 : 0, us->calibration_locked ? 1 : 0);
+						if (us->diag_is_cz_us)
+						{
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | gameplay=%u fire_tmr=%u scrn_x=%d",
+								us->port, us->diag_poll_count,
+								g_dispatch, g_flash_timer, g_flash_enable,
+								g_gameplay, g_fire_timer, static_cast<s32>(g_screen_x));
+						}
+					}
+
+					// Heartbeat every 300 polls with full state.
+					if ((us->diag_poll_count % 300) == 1)
+					{
+						Console.WriteLn("(DIAG:HEARTBEAT) Port %u poll=%u | param=(%d,%d) mode=0x%X | locked=%d pending=%d perm=%d disabled=%d | dark=%d | dly=%u dur=%u | trig=%d",
+							us->port, us->diag_poll_count, us->param_x, us->param_y, us->param_mode,
+							us->calibration_locked ? 1 : 0, us->calibration_pending ? 1 : 0,
+							us->lock_permanent ? 1 : 0, us->photodiode_disabled ? 1 : 0,
+							dark ? 1 : 0, us->dark_delay, us->dark_duration, trigger_down ? 1 : 0);
+						if (us->diag_is_cz_us)
+						{
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | calib=%u gameplay=%u fire_tmr=%u scrn_x=%d held=0x%X",
+								us->port, us->diag_poll_count,
+								g_dispatch, g_flash_timer, g_flash_enable,
+								g_calib_state, g_gameplay, g_fire_timer,
+								static_cast<s32>(g_screen_x), g_held_buttons);
+						}
+					}
+
 					usb_packet_copy(p, &out, sizeof(out));
 					break;
 				}
@@ -565,6 +672,13 @@ namespace usb_lightgun
 				continue;
 
 			Console.WriteLn(fmt::format("(GunCon2) Found game config for '{}'", serial));
+
+			// DIAG: enable CZ US-specific game RAM reads for deep logging.
+			if (serial == "SLUS-20927")
+			{
+				diag_is_cz_us = true;
+				Console.WriteLn(fmt::format("(GunCon2) Port {}: DIAG enabled for CZ US (memRead32 at CZ addresses)", port));
+			}
 
 			// Position values: only apply if NOT using custom manual config.
 			if (!custom_config)
