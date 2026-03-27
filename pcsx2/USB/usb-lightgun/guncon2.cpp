@@ -404,13 +404,14 @@ namespace usb_lightgun
 
 					const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
 
-					if (us->dark_delay > 0 || us->dark_duration > 0)
+					if ((us->dark_delay > 0 || us->dark_duration > 0) && (!us->calibration_locked || !us->lock_permanent))
 					{
 						// Trigger-delayed dark injection — per-game optimized timing.
 						// On trigger press, wait dark_delay polls then force pos=(0,0) for
-						// dark_duration polls. Replaces vanilla's fixed-timer approach with
-						// exact timing measured per game from ELF analysis.
-						// CZ: delay=9, dur=5. VC EU: delay=7, dur=3. NA: delay=0, dur=N (immediate).
+						// dark_duration polls. Active only before calibration lock.
+						// CZ (lock_permanent): disabled after lock — game needs real positions in state 5.
+						// VC (!lock_permanent): stays active after lock — game needs dark for each shot.
+						// CZ: delay=9, dur=5. VC EU: delay=7, dur=3.
 						if ((us->button_state & (1u << BID_TRIGGER)) && !us->dark_inject_fired &&
 							us->dark_inject_countdown == 0 && us->dark_inject_active == 0)
 						{
