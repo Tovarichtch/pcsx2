@@ -72,54 +72,54 @@ namespace usb_lightgun
 	};
 
 	static constexpr const GameConfig s_game_config[] = {
-		// RE-verified values: center_x=422 confirmed by `addiu -0x1A6` in all Namco/Sega MIPS binaries.
-		// dark_delay/dark_duration in MICROSECONDS. Timing from ELF reverse engineering (42 game scan).
-		// Sweet spot = frame 3 for most SDKs. Exceptions: S&H (f2, thr=14), GS2/RES2 (f4, thr=12).
-		// Duration = 17000µs = 2 USB polls = covers exactly 1 game frame (guarantees jeu sees dark).
+		// ELF-based calibration: cx/cy from addiu opcodes, W/H from slti thresholds.
+		// screen_height = ELF height / 2 (interlaced half-field).
+		// scale_x/scale_y calibrated empirically per game by Réda (Tovarichtch).
+		// dark_delay/dark_duration in MICROSECONDS (std::chrono::steady_clock).
 		// fire_once: true = calibration only (Namco/Capcom), false = every shot (Sega VC).
-		//                                      sx       sy     cx   cy    w    h   2pt  dark nopd perm  dly    dur    f1
-		{"SLPM-62401",  89.0f,  103.0f,  422, 130, 640, 240, false, 0, false, false, 50000, 17000, true},  // Death Crimson OX+ (J) NTSC Namco-compat
-		{"SLES-50930", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, En) PAL Capcom thr=13
-		{"SLES-51095", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, Fr) PAL Capcom thr=13
-		{"SLES-51096", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, De) PAL Capcom thr=13
-		{"SLUS-20485", 100.0f,  100.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Dino Stalker (U) NTSC Capcom thr=13
-		{"SLUS-20389",  89.25f,  93.5f,  422, 141, 640, 240, false, 0, false, false, 50000, 17000, true},  // Endgame (U) NTSC fallback
-		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, false, 0, false, false, 60000, 17000, true},  // Endgame (E) PAL fallback (USB port 2)
-		{"SLPM-65059", 100.0f,  100.0f,  422, 132, 640, 256, false, 0, false, false, 67000, 17000, true},  // Gun Survivor 2 (J) NTSC Capcom thr=12 f4
-		{"SLPM-65139", 100.0f,  100.0f,  320, 120, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 3 (J) NTSC Capcom thr=13
-		{"SLPM-67529", 100.0f,  100.0f,  320, 120, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 3 (KR) NTSC Capcom thr=13
-		{"SLPM-65245", 100.0f,  100.0f,  422, 132, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 4 (J) NTSC fallback
-		{"SLES-52620",  90.25f, 113.0f,  430, 160, 640, 256, false, 0, false, false, 60000, 17000, true},  // Guncom 2 (E) PAL Namco-compat
-		{"SLES-51289",  84.0f,   88.8f,  422, 134, 640, 256, false, 0, true,  false, 60000, 17000, true},  // Gunfighter II (E) PAL fallback no_photodiode
-		{"SLPS-25165",  90.0f,   97.0f,  422, 135, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gunvari Collection (J) NTSC Namco thr=13
-		{"SCES-50889",  90.25f,  92.0f,  422, 169, 640, 256, false, 0, false, false, 60000, 17000, true},  // Ninja Assault (E) PAL Namco NO protection
-		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (J) NTSC Namco NO protection
-		{"SCPS-56015",  90.25f,  92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (KR) NTSC Namco NO protection
-		{"SLUS-20492",  90.25f,  92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (U) NTSC Namco NO protection
-		{"SLES-51448",  90.5f,   91.5f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // RE Dead Aim (E) PAL fallback
-		{"SLUS-20669",  90.5f,   91.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // RE Dead Aim (U) NTSC fallback
-		{"SLES-50650",  90.5f,   91.5f,  422, 134, 640, 256, false, 0, false, false, 80000, 17000, true},  // RE Survivor 2 (E) PAL Capcom thr=12 f4
-		{"SLES-51617",  90.0f,   88.0f,  320, 134, 640, 240, false, 0, false, false, 40000, 17000, true},  // Starsky & Hutch (E, En) PAL thr=14 f2
-		{"SLES-51783",  90.0f,   87.7f,  320, 134, 640, 240, false, 0, false, false, 40000, 17000, true},  // Starsky & Hutch (E, Fr/De) PAL thr=14 f2
-		{"SLKA-25090",  90.0f,   97.4f,  422, 134, 640, 240, false, 0, false, false, 33000, 17000, true},  // Starsky & Hutch (KR) NTSC thr=14 f2
-		{"SLUS-20619",  90.25f,  91.75f, 453, 154, 640, 256, false, 0, false, false, 33000, 17000, true},  // Starsky & Hutch (U) NTSC thr=14 f2
-		{"SCES-50300",  90.0f,  103.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Time Crisis II (E) PAL Namco dist_8101
-		{"SLPS-20122",  90.25f,  97.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (J) NTSC Namco dist_8101
-		{"SCKA-20002",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (KR) NTSC Namco dist_8101
-		{"SLUS-20219",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (U) NTSC Namco dist_8101
-		{"SCAJ-20060",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (Asia) NTSC Namco dist_8101
-		{"SCES-51844",  90.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Time Crisis 3 (E) PAL Namco dist_8101
-		{"SLPS-25290",  90.25f,  99.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (J) NTSC Namco dist_8101
-		{"SCKA-20015",  90.0f,   98.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (KR) NTSC Namco dist_8101
-		{"SLUS-20645",  90.25f, 100.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (U) NTSC Namco dist_8101
-		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, false, 0, false, true,  60000, 17000, true},  // Crisis Zone (E) PAL Namco hard_abort VERIFIED
-		{"SCKA-20038",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, true,  50000, 17000, true},  // Crisis Zone (KR) NTSC Namco hard_abort VERIFIED
-		{"SLUS-20927",  90.25f,  97.5f,  422, 134, 640, 240, false, 0, false, true,  50000, 17000, true},  // Crisis Zone (U) NTSC Namco hard_abort VERIFIED
-		{"SCES-50411",  90.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Vampire Night (E) PAL Namco abort_no_prot
-		{"SLPS-25077",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Vampire Night (J) NTSC Namco abort_no_prot
-		{"SLUS-20221",  90.0f,   98.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Vampire Night (U) NTSC Namco abort_no_prot
-		{"SLES-51229", 111.0f,  100.0f,  422, 134, 512, 256, false, 0, false, false, 56000, 17000, false}, // Virtua Cop Elite Edition (E) PAL Sega tolerant
-		{"SLPM-62205",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 64000, 17000, false}, // Virtua Cop Re-Birth (J) NTSC Sega tolerant
+		//                                       sx       sy     cx   cy    w    h   2pt  dark nopd perm  dly    dur    f1
+		{"SLPM-62401",  89.75f, 113.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Death Crimson OX+ (J) NTSC
+		{"SLES-50930",  89.5f,  103.0f,  422, 134, 512, 224, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, En) PAL Capcom
+		{"SLES-51095",  89.5f,  103.0f,  422, 134, 512, 224, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, Fr) PAL Capcom
+		{"SLES-51096",  89.5f,  103.0f,  422, 134, 512, 224, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, De) PAL Capcom
+		{"SLUS-20485",  89.5f,  103.0f,  422, 134, 512, 224, false, 0, false, false, 50000, 17000, true},  // Dino Stalker (U) NTSC Capcom
+		{"SLUS-20389",  89.25f,  93.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Endgame (U) NTSC (untested, upstream values)
+		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, false, 0, false, false, 60000, 17000, true},  // Endgame (E) PAL (untested, USB port 2)
+		{"SLPM-65060", 100.0f,  101.0f,  422, 134, 640, 224, false, 0, false, false, 67000, 17000, true},  // Gun Survivor 2 (J) NTSC Capcom thr=12 f4
+		{"SLPM-65139", 100.0f,  100.0f,  422, 134, 512, 224, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 3 (J) NTSC Capcom
+		{"SLPM-67529", 100.0f,  100.0f,  422, 134, 512, 224, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 3 (KR) NTSC Capcom
+		{"SLPM-65245", 100.0f,  101.25f, 422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 4 (J) NTSC Capcom
+		{"SLES-52620",  89.75f, 112.0f,  422, 148, 640, 256, false, 0, false, false, 60000, 17000, true},  // Guncom 2 (E) PAL
+		{"SLES-51289", 105.0f,   88.0f,  422, 164, 512, 256, false, 0, true,  false, 60000, 17000, true},  // Gunfighter II (E) PAL no_photodiode
+		{"SLPS-25165",  90.0f,  105.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Gunvari Collection (J) NTSC Namco
+		{"SCES-50889",  90.0f,   97.5f,  422, 169, 640, 240, false, 0, false, false, 60000, 17000, true},  // Ninja Assault (E) PAL Namco
+		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (J) NTSC Namco
+		{"SCPS-56015",  90.0f,   92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (KR) NTSC Namco
+		{"SLUS-20492",  90.0f,   92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (U) NTSC Namco
+		{"SLES-51448",  90.25f, 108.0f,  422, 134, 640, 225, false, 0, false, false, 60000, 17000, true},  // RE Dead Aim (E) PAL
+		{"SLUS-20669",  90.5f,  114.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // RE Dead Aim (U) NTSC
+		{"SLES-50650", 100.0f,  100.0f,  422, 134, 640, 224, false, 0, false, false, 80000, 17000, true},  // RE Survivor 2 (E) PAL Capcom thr=12 f4
+		{"SLES-51617",  90.0f,   82.5f,  422, 134, 640, 256, false, 0, false, false, 40000, 17000, true},  // Starsky & Hutch (E, En) PAL thr=14 f2
+		{"SLES-51783",  90.0f,   82.5f,  422, 134, 640, 256, false, 0, false, false, 40000, 17000, true},  // Starsky & Hutch (E, Fr/De) PAL thr=14 f2
+		{"SLKA-25090",  90.0f,  104.5f,  422, 134, 640, 224, false, 0, false, false, 33000, 17000, true},  // Starsky & Hutch (KR) NTSC thr=14 f2
+		{"SLUS-20619",  90.0f,  104.5f,  422, 134, 640, 224, false, 0, false, false, 33000, 17000, true},  // Starsky & Hutch (U) NTSC thr=14 f2
+		{"SCES-50300",  90.0f,  103.0f,  437, 164, 640, 256, false, 0, false, false, 60000, 17000, true},  // Time Crisis II (E) PAL Namco dist_8101
+		{"SLPS-20122",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (J) NTSC Namco dist_8101
+		{"SCKA-20002",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (KR) NTSC Namco dist_8101
+		{"SLUS-20219",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (U) NTSC Namco dist_8101
+		{"SCAJ-20060",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (Asia) NTSC Namco dist_8101
+		{"SCES-51844",  90.0f,  103.0f,  437, 164, 640, 256, false, 0, false, false, 60000, 17000, true},  // Time Crisis 3 (E) PAL Namco dist_8101
+		{"SLPS-25290",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (J) NTSC Namco dist_8101
+		{"SCKA-20015",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (KR) NTSC Namco dist_8101
+		{"SLUS-20645",  89.75f, 104.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (U) NTSC Namco dist_8101
+		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, false, 0, false, true,  60000, 17000, true},  // Crisis Zone (E) PAL Namco hard_abort
+		{"SCKA-20038",  90.0f,  104.5f,  422, 134, 640, 224, false, 0, false, true,  50000, 17000, true},  // Crisis Zone (KR) NTSC Namco hard_abort
+		{"SLUS-20927",  90.0f,  104.5f,  422, 134, 640, 224, false, 0, false, true,  50000, 17000, true},  // Crisis Zone (U) NTSC Namco hard_abort VERIFIED
+		{"SCES-50411",  89.75f, 115.0f,  422, 134, 640, 224, false, 0, false, false, 60000, 17000, true},  // Vampire Night (E) PAL Namco
+		{"SLPS-25077",  89.75f, 105.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Vampire Night (J) NTSC Namco
+		{"SLUS-20221",  89.75f, 105.0f,  422, 134, 640, 224, false, 0, false, false, 50000, 17000, true},  // Vampire Night (U) NTSC Namco
+		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, false, 0, false, false, 56000, 17000, false}, // Virtua Cop Elite Edition (E) PAL Sega
+		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, false, 0, false, false, 64000, 17000, false}, // Virtua Cop Re-Birth (J) NTSC Sega
 	};
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
