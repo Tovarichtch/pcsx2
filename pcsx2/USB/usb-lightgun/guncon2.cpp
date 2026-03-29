@@ -20,6 +20,7 @@
 
 #include "fmt/format.h"
 
+#include <chrono>
 #include <tuple>
 
 namespace usb_lightgun
@@ -65,58 +66,60 @@ namespace usb_lightgun
 		u32 dark_threshold; // Per-game photodiode dark entry threshold (0 = default 44). Exit = threshold * 2.
 		bool no_photodiode; // Lock dark=false from boot — game calibrates without photodiode.
 		bool lock_permanent; // Once calibration locks, it NEVER unlocks (blocks SET_PARAM x=0 spam).
-		u16 dark_delay;    // Trigger-delayed dark injection: polls before injecting dark (0 = use photodiode).
-		u16 dark_duration; // How many polls to hold dark (0 = use photodiode).
+		u32 dark_delay;    // Trigger-delayed dark injection: microseconds before injecting dark (0 = use photodiode).
+		u32 dark_duration; // Microseconds to hold dark after delay (0 = use photodiode).
+		bool fire_once;    // true = dark inject only until calibration succeeds (CZ). false = every shot (VC).
 	};
 
 	static constexpr const GameConfig s_game_config[] = {
 		// RE-verified values: center_x=422 confirmed by `addiu -0x1A6` in all Namco/Sega MIPS binaries.
-		// dark_delay/dark_duration: trigger-delayed dark injection (0/0 = use photodiode).
-		//   CZ: delay=9 (ftimer≤13, below game's <13 threshold), duration=5.
-		//   VC: delay=1 (immediate, no early-dark protection), duration=3.
-		//                                      sx       sy     cx   cy    w    h   2pt  dark nopd perm  dly dur
-		{"SLPM-62401",  89.0f,  103.0f,  422, 130, 640, 240, false, 0, false, false, 0, 0}, // Death Crimson OX+ (J)
-		{"SLES-50930", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // Dino Stalker (E, En)
-		{"SLES-51095", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // Dino Stalker (E, Fr)
-		{"SLES-51096", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // Dino Stalker (E, De)
-		{"SLUS-20485", 100.0f,  100.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Dino Stalker (U)
-		{"SLUS-20389",  89.25f,  93.5f,  422, 141, 640, 240, false, 0, false, false, 0, 0}, // Endgame (U)
-		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, false, 0, false, false, 0, 0}, // Endgame (E) (USB port 2)
-		{"SLPM-65059", 100.0f,  100.0f,  422, 132, 640, 256, false, 0, false, false, 0, 0}, // Gun Survivor 2 (J)
-		{"SLPM-65139", 100.0f,  100.0f,  320, 120, 640, 240, false, 0, false, false, 0, 0}, // Gun Survivor 3 (J)
-		{"SLPM-67529", 100.0f,  100.0f,  320, 120, 640, 240, false, 0, false, false, 0, 0}, // Gun Survivor 3 (KR)
-		{"SLPM-65245", 100.0f,  100.0f,  422, 132, 640, 240, false, 0, false, false, 0, 0}, // Gun Survivor 4 (J)
-		{"SLES-52620",  90.25f, 113.0f,  430, 160, 640, 256, false, 0, false, false, 0, 0}, // Guncom 2 (E)
-		{"SLES-51289",  84.0f,   88.8f,  422, 134, 640, 256, false, 0, true,  false, 0, 0}, // Gunfighter II (E)
-		{"SLPS-25165",  90.0f,   97.0f,  422, 135, 640, 240, false, 0, false, false, 0, 0}, // Gunvari Collection (J)
-		{"SCES-50889",  90.25f,  92.0f,  422, 169, 640, 256, false, 0, false, false, 0, 0}, // Ninja Assault (E)
-		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Ninja Assault (J)
-		{"SCPS-56015",  90.25f,  92.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Ninja Assault (KR)
-		{"SLUS-20492",  90.25f,  92.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Ninja Assault (U)
-		{"SLES-51448",  90.5f,   91.5f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // RE Dead Aim (E)
-		{"SLUS-20669",  90.5f,   91.5f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // RE Dead Aim (U)
-		{"SLES-50650",  90.5f,   91.5f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // RE Survivor 2 (E)
-		{"SLES-51617",  90.0f,   88.0f,  320, 134, 640, 240, false, 0, false, false, 0, 0}, // Starsky & Hutch (E, En)
-		{"SLES-51783",  90.0f,   87.7f,  320, 134, 640, 240, false, 0, false, false, 0, 0}, // Starsky & Hutch (E, Fr/De)
-		{"SLKA-25090",  90.0f,   97.4f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Starsky & Hutch (KR)
-		{"SLUS-20619",  90.25f,  91.75f, 453, 154, 640, 256, false, 0, false, false, 0, 0}, // Starsky & Hutch (U)
-		{"SCES-50300",  90.0f,  103.0f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // Time Crisis II (E)
-		{"SLPS-20122",  90.25f,  97.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis II (J)
-		{"SCKA-20002",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis II (KR)
-		{"SLUS-20219",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis II (U)
-		{"SCAJ-20060",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis 3 (Asia)
-		{"SCES-51844",  90.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // Time Crisis 3 (E)
-		{"SLPS-25290",  90.25f,  99.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis 3 (J)
-		{"SCKA-20015",  90.0f,   98.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis 3 (KR)
-		{"SLUS-20645",  90.25f, 100.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Time Crisis 3 (U)
-		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, false, 0, false, true,  9, 5}, // Crisis Zone (E)
-		{"SCKA-20038",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, true,  9, 5}, // Crisis Zone (KR)
-		{"SLUS-20927",  90.25f,  97.5f,  422, 134, 640, 240, false, 0, false, true,  9, 5}, // Crisis Zone (U)
-		{"SCES-50411",  90.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 0, 0}, // Vampire Night (E)
-		{"SLPS-25077",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Vampire Night (J)
-		{"SLUS-20221",  90.0f,   98.0f,  422, 134, 640, 240, false, 0, false, false, 0, 0}, // Vampire Night (U)
-		{"SLES-51229", 111.0f,  100.0f,  422, 134, 512, 256, false, 0, false, false, 7, 3}, // Virtua Cop Elite Edition (E)
-		{"SLPM-62205",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 8, 3}, // Virtua Cop Re-Birth (J)
+		// dark_delay/dark_duration in MICROSECONDS. Timing from ELF reverse engineering (42 game scan).
+		// Sweet spot = frame 3 for most SDKs. Exceptions: S&H (f2, thr=14), GS2/RES2 (f4, thr=12).
+		// Duration = 17000µs = 2 USB polls = covers exactly 1 game frame (guarantees jeu sees dark).
+		// fire_once: true = calibration only (Namco/Capcom), false = every shot (Sega VC).
+		//                                      sx       sy     cx   cy    w    h   2pt  dark nopd perm  dly    dur    f1
+		{"SLPM-62401",  89.0f,  103.0f,  422, 130, 640, 240, false, 0, false, false, 50000, 17000, true},  // Death Crimson OX+ (J) NTSC Namco-compat
+		{"SLES-50930", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, En) PAL Capcom thr=13
+		{"SLES-51095", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, Fr) PAL Capcom thr=13
+		{"SLES-51096", 100.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Dino Stalker (E, De) PAL Capcom thr=13
+		{"SLUS-20485", 100.0f,  100.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Dino Stalker (U) NTSC Capcom thr=13
+		{"SLUS-20389",  89.25f,  93.5f,  422, 141, 640, 240, false, 0, false, false, 50000, 17000, true},  // Endgame (U) NTSC fallback
+		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, false, 0, false, false, 60000, 17000, true},  // Endgame (E) PAL fallback (USB port 2)
+		{"SLPM-65059", 100.0f,  100.0f,  422, 132, 640, 256, false, 0, false, false, 67000, 17000, true},  // Gun Survivor 2 (J) NTSC Capcom thr=12 f4
+		{"SLPM-65139", 100.0f,  100.0f,  320, 120, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 3 (J) NTSC Capcom thr=13
+		{"SLPM-67529", 100.0f,  100.0f,  320, 120, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 3 (KR) NTSC Capcom thr=13
+		{"SLPM-65245", 100.0f,  100.0f,  422, 132, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gun Survivor 4 (J) NTSC fallback
+		{"SLES-52620",  90.25f, 113.0f,  430, 160, 640, 256, false, 0, false, false, 60000, 17000, true},  // Guncom 2 (E) PAL Namco-compat
+		{"SLES-51289",  84.0f,   88.8f,  422, 134, 640, 256, false, 0, true,  false, 60000, 17000, true},  // Gunfighter II (E) PAL fallback no_photodiode
+		{"SLPS-25165",  90.0f,   97.0f,  422, 135, 640, 240, false, 0, false, false, 50000, 17000, true},  // Gunvari Collection (J) NTSC Namco thr=13
+		{"SCES-50889",  90.25f,  92.0f,  422, 169, 640, 256, false, 0, false, false, 60000, 17000, true},  // Ninja Assault (E) PAL Namco NO protection
+		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (J) NTSC Namco NO protection
+		{"SCPS-56015",  90.25f,  92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (KR) NTSC Namco NO protection
+		{"SLUS-20492",  90.25f,  92.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Ninja Assault (U) NTSC Namco NO protection
+		{"SLES-51448",  90.5f,   91.5f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // RE Dead Aim (E) PAL fallback
+		{"SLUS-20669",  90.5f,   91.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // RE Dead Aim (U) NTSC fallback
+		{"SLES-50650",  90.5f,   91.5f,  422, 134, 640, 256, false, 0, false, false, 80000, 17000, true},  // RE Survivor 2 (E) PAL Capcom thr=12 f4
+		{"SLES-51617",  90.0f,   88.0f,  320, 134, 640, 240, false, 0, false, false, 40000, 17000, true},  // Starsky & Hutch (E, En) PAL thr=14 f2
+		{"SLES-51783",  90.0f,   87.7f,  320, 134, 640, 240, false, 0, false, false, 40000, 17000, true},  // Starsky & Hutch (E, Fr/De) PAL thr=14 f2
+		{"SLKA-25090",  90.0f,   97.4f,  422, 134, 640, 240, false, 0, false, false, 33000, 17000, true},  // Starsky & Hutch (KR) NTSC thr=14 f2
+		{"SLUS-20619",  90.25f,  91.75f, 453, 154, 640, 256, false, 0, false, false, 33000, 17000, true},  // Starsky & Hutch (U) NTSC thr=14 f2
+		{"SCES-50300",  90.0f,  103.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Time Crisis II (E) PAL Namco dist_8101
+		{"SLPS-20122",  90.25f,  97.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (J) NTSC Namco dist_8101
+		{"SCKA-20002",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (KR) NTSC Namco dist_8101
+		{"SLUS-20219",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis II (U) NTSC Namco dist_8101
+		{"SCAJ-20060",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (Asia) NTSC Namco dist_8101
+		{"SCES-51844",  90.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Time Crisis 3 (E) PAL Namco dist_8101
+		{"SLPS-25290",  90.25f,  99.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (J) NTSC Namco dist_8101
+		{"SCKA-20015",  90.0f,   98.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (KR) NTSC Namco dist_8101
+		{"SLUS-20645",  90.25f, 100.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Time Crisis 3 (U) NTSC Namco dist_8101
+		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, false, 0, false, true,  60000, 17000, true},  // Crisis Zone (E) PAL Namco hard_abort VERIFIED
+		{"SCKA-20038",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, true,  50000, 17000, true},  // Crisis Zone (KR) NTSC Namco hard_abort VERIFIED
+		{"SLUS-20927",  90.25f,  97.5f,  422, 134, 640, 240, false, 0, false, true,  50000, 17000, true},  // Crisis Zone (U) NTSC Namco hard_abort VERIFIED
+		{"SCES-50411",  90.0f,  100.0f,  422, 134, 640, 256, false, 0, false, false, 60000, 17000, true},  // Vampire Night (E) PAL Namco abort_no_prot
+		{"SLPS-25077",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Vampire Night (J) NTSC Namco abort_no_prot
+		{"SLUS-20221",  90.0f,   98.0f,  422, 134, 640, 240, false, 0, false, false, 50000, 17000, true},  // Vampire Night (U) NTSC Namco abort_no_prot
+		{"SLES-51229", 111.0f,  100.0f,  422, 134, 512, 256, false, 0, false, false, 56000, 17000, false}, // Virtua Cop Elite Edition (E) PAL Sega tolerant
+		{"SLPM-62205",  90.0f,   97.5f,  422, 134, 640, 240, false, 0, false, false, 64000, 17000, false}, // Virtua Cop Re-Birth (J) NTSC Sega tolerant
 	};
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
@@ -209,8 +212,15 @@ namespace usb_lightgun
 		u16 dark_inject_countdown = 0;
 		u16 dark_inject_active = 0;
 		bool dark_inject_fired = false; // Edge detect: only inject once per trigger press.
-		u16 dark_delay = 0;    // 0 = use photodiode (default). Set from GameConfig.
-		u16 dark_duration = 0; // Set from GameConfig.
+		u32 dark_delay = 0;    // 0 = use photodiode (default). Microseconds. Set from GameConfig.
+		u32 dark_duration = 0; // Microseconds. Set from GameConfig.
+		bool fire_once = false; // true = calibration-on-trigger mode (CZ). false = dark inject every shot (VC).
+
+		// fire_once calibration: vanilla-style mechanism triggered by first trigger.
+		// Force trigger down, send stored position during delay µs, then send (0,0)
+		// for duration µs. Both measured via steady_clock. No memRead/memWrite.
+		bool calibration_active = false;   // true = currently in calibration sequence
+		std::chrono::steady_clock::time_point calibration_start_time; // sub-poll precision trigger timestamp
 
 		static constexpr u32 LOCK_SETTLE_POLLS = 750; // ~6 seconds at 125Hz USB poll rate — no SET_PARAM activity = calibration done
 
@@ -218,6 +228,8 @@ namespace usb_lightgun
 		bool diag_trigger_was_down = false;
 		u32 diag_poll_count = 0;
 		bool diag_is_cz_us = false; // Gate CZ-specific memRead32 on SLUS-20927 addresses
+		u32 diag_last_btn_proc = 0; // Track btn_proc changes for shoot logging
+		u32 diag_last_fire_tmr = 0; // Track fire_tmr changes for shoot logging
 
 		bool auto_config_done = false;
 
@@ -330,12 +342,22 @@ namespace usb_lightgun
 					// CZ: lock ONLY when param_x changes from initial value.
 					// The x=0 spam at boot is normal — ignore it entirely.
 					// Once locked, all further SET_PARAMs are ignored (permanent).
+					// fire_once: also cut the calibration sequence immediately.
 					if (!us->calibration_locked && us->param_x != us->initial_param_x)
 					{
 						us->calibration_locked = true;
 						us->calibration_pending = false;
-						Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [permanent/immediate] (param_x: %d -> %d)",
-							us->port, us->initial_param_x, us->param_x);
+						if (us->calibration_active)
+						{
+							us->calibration_active = false;
+							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED + CUT [permanent/immediate] (param_x: %d -> %d)",
+								us->port, us->initial_param_x, us->param_x);
+						}
+						else
+						{
+							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [permanent/immediate] (param_x: %d -> %d)",
+								us->port, us->initial_param_x, us->param_x);
+						}
 					}
 				}
 				else if (!us->photodiode_disabled)
@@ -396,8 +418,15 @@ namespace usb_lightgun
 					// We detect darkness via GPU pixel sampling in Merge().
 
 					// Buttons are active low.
+					// Buttons are active low. Bit 8 (GUNCON2_FLAG_PROGRESSIVE) is left
+					// at its natural ~button_state value (always 1, since no BID maps to
+					// bit 8). This matches PCSX2 vanilla behavior and allows the game's
+					// FUNC_A progressive detection to run its normal course at boot.
+					// Photodiode simulation for step 2 brightness is deferred — step 1
+					// calibration (dark_inject timing) handles all shooting calibration.
+					const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
 					GunCon2Out out;
-					out.buttons = static_cast<u16>(~us->button_state) | (us->param_mode & GUNCON2_FLAG_PROGRESSIVE);
+					out.buttons = static_cast<u16>(~us->button_state);
 					out.pos_x = pos_x;
 					out.pos_y = pos_y;
 
@@ -408,56 +437,119 @@ namespace usb_lightgun
 						out.pos_y = 0;
 					}
 
-					const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
-
-					if ((us->dark_delay > 0 || us->dark_duration > 0) && (!us->calibration_locked || !us->lock_permanent))
+					if (us->fire_once && us->dark_delay > 0)
 					{
-						// Trigger-delayed dark injection — per-game optimized timing.
-						// On trigger press, wait dark_delay polls then force pos=(0,0) for
-						// dark_duration polls. Active only before calibration lock.
-						// CZ (lock_permanent): disabled after lock — game needs real positions in state 5.
-						// VC (!lock_permanent): stays active after lock — game needs dark for each shot.
-						// CZ: delay=9, dur=5. VC EU: delay=7, dur=3.
-						if ((us->button_state & (1u << BID_TRIGGER)) && !us->dark_inject_fired &&
-							us->dark_inject_countdown == 0 && us->dark_inject_active == 0)
+						// fire_once calibration (CZ): trigger-activated, full sub-poll precision.
+						// On first trigger: store position and timestamp. Force trigger down.
+						// Send stored pos until dark_delay µs elapsed (50ms NTSC, 60ms PAL).
+						// Then send (0,0) until dark_delay+dark_duration µs elapsed (8ms = 1 frame).
+						// Both delay and duration use steady_clock — zero poll granularity.
+						// After calibration_locked: do nothing — trigger = normal shot.
+						if (!us->calibration_locked)
 						{
-							if (us->dark_delay > 0)
-								us->dark_inject_countdown = us->dark_delay;
-							else
-								us->dark_inject_active = us->dark_duration; // delay=0: immediate dark
-							us->dark_inject_fired = true;
-						}
-						if (!(us->button_state & (1u << BID_TRIGGER)))
-							us->dark_inject_fired = false;
+							// Start calibration on trigger press edge
+							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calibration_active && !us->dark_inject_fired)
+							{
+								us->calibration_active = true;
+								us->calibration_start_time = std::chrono::steady_clock::now();
+								us->calibration_pos_x = pos_x;
+								us->calibration_pos_y = pos_y;
+								us->dark_inject_fired = true;
+								Console.WriteLn("(DIAG:FIRE) Port %u poll=%u: CALIBRATION STARTED (delay=%uus dur=%uus pos=(%d,%d))",
+									us->port, us->diag_poll_count, us->dark_delay, us->dark_duration, pos_x, pos_y);
+							}
+							if (!(us->button_state & (1u << BID_TRIGGER)))
+								us->dark_inject_fired = false;
 
-						if (us->dark_inject_countdown > 0)
-						{
-							us->dark_inject_countdown--;
-							if (us->dark_inject_countdown == 0)
-								us->dark_inject_active = us->dark_duration;
-						}
+							if (us->calibration_active)
+							{
+								// Force trigger down during entire calibration sequence
+								out.buttons &= ~(1u << BID_TRIGGER);
 
-						if (us->dark_inject_active > 0)
-						{
-							out.pos_x = 0;
-							out.pos_y = 0;
-							us->dark_inject_active--;
+								const auto elapsed = std::chrono::steady_clock::now() - us->calibration_start_time;
+								const auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
+								const s64 dark_end = static_cast<s64>(us->dark_delay) + static_cast<s64>(us->dark_duration);
+
+								if (elapsed_us < static_cast<s64>(us->dark_delay))
+								{
+									// Delay phase: send stored position (game accumulates)
+									out.pos_x = us->calibration_pos_x;
+									out.pos_y = us->calibration_pos_y;
+								}
+								else if (elapsed_us < dark_end)
+								{
+									// Dark phase: send (0,0)
+									out.pos_x = 0;
+									out.pos_y = 0;
+								}
+								else
+								{
+									// Done — sequence expired, return control to player.
+									// Do NOT lock here — only lock when param_x changes (CUT).
+									// This allows retry: if the game wasn't in calibration mode
+									// (e.g. misclick during logos), next trigger will re-run the sequence.
+									us->calibration_active = false;
+									us->dark_inject_fired = false; // allow next trigger to restart
+									Console.WriteLn("(DIAG:FIRE) Port %u poll=%u: CALIBRATION COMPLETE — NOT locked (elapsed=%lldus, dark_end=%lldus)",
+										us->port, us->diag_poll_count, static_cast<long long>(elapsed_us), static_cast<long long>(dark_end));
+								}
+
+								if (us->calibration_active)
+								{
+									Console.WriteLn("(DIAG:CALIB) Port %u poll=%u | elapsed=%lldus phase=%s | out=(%d,%d)",
+										us->port, us->diag_poll_count,
+										static_cast<long long>(elapsed_us),
+										(elapsed_us < static_cast<s64>(us->dark_delay)) ? "DELAY" : "DARK",
+										out.pos_x, out.pos_y);
+								}
+							}
 						}
-						else if (!us->calibration_locked && dark)
+						// After calibration_locked: trigger = normal. No dark, no forced trigger.
+					}
+					else if (us->dark_delay > 0 || us->dark_duration > 0)
+					{
+						// dark_inject every shot (VC): existing mechanism.
+						// On each trigger, wait dark_delay µs (converted to polls) then
+						// inject (0,0) for dark_duration µs (converted to polls).
+						if (!us->calibration_locked || !us->lock_permanent)
 						{
-							// Photodiode fallback: before calibration lock, let the vanilla
-							// photodiode pass dark through for boot/init screen calibration.
-							// After lock, dark is blocked — prevents false darks on dark scenes.
-							out.pos_x = 0;
-							out.pos_y = 0;
+							if ((us->button_state & (1u << BID_TRIGGER)) && !us->dark_inject_fired &&
+								us->dark_inject_countdown == 0 && us->dark_inject_active == 0)
+							{
+								if (us->dark_delay > 0)
+									us->dark_inject_countdown = static_cast<u16>(us->dark_delay / 8000); // µs to polls
+								else
+									us->dark_inject_active = static_cast<u16>(us->dark_duration / 8000); // µs to polls
+								us->dark_inject_fired = true;
+							}
+							if (!(us->button_state & (1u << BID_TRIGGER)))
+								us->dark_inject_fired = false;
+
+							if (us->dark_inject_countdown > 0)
+							{
+								us->dark_inject_countdown--;
+								if (us->dark_inject_countdown == 0)
+									us->dark_inject_active = static_cast<u16>(us->dark_duration / 8000); // µs to polls
+							}
+
+							if (us->dark_inject_active > 0)
+							{
+								out.pos_x = 0;
+								out.pos_y = 0;
+								us->dark_inject_active--;
+							}
+							else if (!us->calibration_locked && dark)
+							{
+								out.pos_x = 0;
+								out.pos_y = 0;
+							}
 						}
 					}
 					else
 					{
 						// Standard photodiode for games without dark_inject (NA, TC2, etc).
 						// Before calibration lock: dark → pos=(0,0) for calibration to work.
-						// After calibration lock: dark BLOCKED for ALL games — prevents false
-						// darks from dark scenes/interlaced flicker causing random reloads.
+						// After calibration lock: dark BLOCKED — prevents false darks.
 						if (dark && !us->calibration_locked)
 						{
 							out.pos_x = 0;
@@ -538,7 +630,10 @@ namespace usb_lightgun
 					u32 g_dispatch = 0, g_flash_timer = 0, g_flash_enable = 0;
 					u32 g_calib_state = 0, g_gameplay = 0, g_fire_timer = 0;
 					u32 g_trigger_flag = 0, g_screen_x = 0, g_held_buttons = 0;
+					u32 g_buttons_proc = 0, g_pos_valid = 0;
 					u32 g_base_delay = 0, g_extra_delay = 0;
+					u32 g_dark_count = 0, g_progressive = 0, g_frame_count = 0, g_prog_done = 0;
+					u32 g_game_state = 0, g_calib_sub = 0, g_calib_next = 0;
 					if (us->diag_is_cz_us)
 					{
 						// Global vars (gp=0x0045C4F0 relative)
@@ -547,13 +642,24 @@ namespace usb_lightgun
 						g_flash_enable = memRead32(0x00456E10); // 1=flash active this frame
 						g_base_delay   = memRead32(0x00456E18); // fire_timer base (init=2)
 						g_extra_delay  = memRead32(0x00456E14); // fire_timer extra (init=2)
+						// FUNC_A (progressive detection)
+						g_dark_count   = memRead32(0x00456E04); // dark frames counted (need >=4)
+						g_progressive  = memRead32(0x00456E1C); // 0=interlaced, 1=progressive
+						g_frame_count  = memRead32(0x00456E08); // frame counter in FUNC_A (0→8)
+						g_prog_done    = memRead32(0x00456E24); // 1=FUNC_A completed
+						// Game-side calibration screen (0x146D00)
+						g_game_state   = memRead32(0x004569A0); // 0x51=calibration screen active
+						g_calib_sub    = memRead32(0x00456A30); // sub-state in calibration screen
+						g_calib_next   = memRead32(0x00456AB0); // next calibration step
 						// Per-player gun_state P0 (base=0x7FFC30, stride=0x3C)
 						g_calib_state  = memRead32(0x007FFC68); // +0x38: 0→8, SET_PARAM at 4
 						g_gameplay     = memRead32(0x007FFC54); // +0x24: 1=gameplay active
-						g_fire_timer   = memRead32(0x007FFC40); // +0x10: fire countdown
-						g_trigger_flag = memRead32(0x007FFC44); // +0x14: 1=edge trigger
+						g_fire_timer   = memRead32(0x007FFC40); // +0x10: fire countdown (FUNC_B calib)
+						g_trigger_flag = memRead32(0x007FFC44); // +0x14: 1=edge trigger (1 frame only)
 						g_screen_x     = memRead32(0x007FFC4C); // +0x1C: -1=dark
-						g_held_buttons = memRead32(0x007FFC58); // held buttons bitmask
+						g_held_buttons = memRead32(0x007FFC58); // +0x28: held buttons bitmask
+						g_buttons_proc = memRead32(0x007FFC5C); // +0x2C: processed buttons — SHOOT reads bit 5
+						g_pos_valid    = memRead32(0x007FFC3C); // +0x0C: pos_valid
 					}
 
 					// Log trigger down with FULL state dump.
@@ -567,12 +673,15 @@ namespace usb_lightgun
 							us->dark_inject_fired ? 1 : 0);
 						if (us->diag_is_cz_us)
 						{
-							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | calib=%u gameplay=%u fire_tmr=%u trig_flag=%u scrn_x=%d held=0x%X | base_dly=%u extra_dly=%u",
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | calib=%u gameplay=%u fire_tmr=%u trig_flag=%u scrn_x=%d | held=0x%X btn_proc=0x%X pos_valid=%u | base_dly=%u extra_dly=%u | dark_cnt=%u prog=%u frm_cnt=%u prog_done=%u | gstate=0x%X csub=%u cnext=%u",
 								us->port, us->diag_poll_count,
 								g_dispatch, g_flash_timer, g_flash_enable,
 								g_calib_state, g_gameplay, g_fire_timer, g_trigger_flag,
-								static_cast<s32>(g_screen_x), g_held_buttons,
-								g_base_delay, g_extra_delay);
+								static_cast<s32>(g_screen_x),
+								g_held_buttons, g_buttons_proc, g_pos_valid,
+								g_base_delay, g_extra_delay,
+								g_dark_count, g_progressive, g_frame_count, g_prog_done,
+								g_game_state, g_calib_sub, g_calib_next);
 						}
 					}
 
@@ -584,13 +693,31 @@ namespace usb_lightgun
 							dark ? 1 : 0, us->calibration_locked ? 1 : 0);
 						if (us->diag_is_cz_us)
 						{
-							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | gameplay=%u fire_tmr=%u scrn_x=%d",
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | gameplay=%u fire_tmr=%u scrn_x=%d btn_proc=0x%X | dark_cnt=%u prog=%u prog_done=%u | gstate=0x%X csub=%u cnext=%u",
 								us->port, us->diag_poll_count,
 								g_dispatch, g_flash_timer, g_flash_enable,
-								g_gameplay, g_fire_timer, static_cast<s32>(g_screen_x));
+								g_gameplay, g_fire_timer, static_cast<s32>(g_screen_x), g_buttons_proc,
+								g_dark_count, g_progressive, g_prog_done,
+								g_game_state, g_calib_sub, g_calib_next);
 						}
 					}
 					us->diag_trigger_was_down = trigger_down;
+
+					// Log gameplay shooting: track btn_proc and fire_tmr changes while trigger held.
+					// This captures autofire pulses (btn_proc=0x20 = shot registered) that were
+					// invisible in the previous logging (only heartbeat every 300 polls).
+					if (us->diag_is_cz_us && trigger_down && us->calibration_locked)
+					{
+						if (g_buttons_proc != us->diag_last_btn_proc || g_fire_timer != us->diag_last_fire_tmr)
+						{
+							Console.WriteLn("(DIAG:SHOOT) Port %u poll=%u | fire_tmr=%u btn_proc=0x%X scrn_x=%d | dispatch=%u base_dly=%u",
+								us->port, us->diag_poll_count,
+								g_fire_timer, g_buttons_proc, static_cast<s32>(g_screen_x),
+								g_dispatch, g_base_delay);
+							us->diag_last_btn_proc = g_buttons_proc;
+							us->diag_last_fire_tmr = g_fire_timer;
+						}
+					}
 
 					// Log every poll during dark_inject countdown or active.
 					if (us->dark_inject_countdown > 0 || us->dark_inject_active > 0)
@@ -601,10 +728,12 @@ namespace usb_lightgun
 							out.pos_x, out.pos_y, dark ? 1 : 0, us->calibration_locked ? 1 : 0);
 						if (us->diag_is_cz_us)
 						{
-							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | gameplay=%u fire_tmr=%u scrn_x=%d",
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | gameplay=%u fire_tmr=%u scrn_x=%d btn_proc=0x%X | dark_cnt=%u prog=%u prog_done=%u | gstate=0x%X csub=%u cnext=%u",
 								us->port, us->diag_poll_count,
 								g_dispatch, g_flash_timer, g_flash_enable,
-								g_gameplay, g_fire_timer, static_cast<s32>(g_screen_x));
+								g_gameplay, g_fire_timer, static_cast<s32>(g_screen_x), g_buttons_proc,
+								g_dark_count, g_progressive, g_prog_done,
+								g_game_state, g_calib_sub, g_calib_next);
 						}
 					}
 
@@ -618,11 +747,13 @@ namespace usb_lightgun
 							dark ? 1 : 0, us->dark_delay, us->dark_duration, trigger_down ? 1 : 0);
 						if (us->diag_is_cz_us)
 						{
-							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | calib=%u gameplay=%u fire_tmr=%u scrn_x=%d held=0x%X",
+							Console.WriteLn("(DIAG:CZ-RAM) Port %u poll=%u | dispatch=%u flash_tmr=%u flash_en=%u | calib=%u gameplay=%u fire_tmr=%u scrn_x=%d | held=0x%X btn_proc=0x%X pos_valid=%u | dark_cnt=%u prog=%u frm_cnt=%u prog_done=%u | gstate=0x%X csub=%u cnext=%u",
 								us->port, us->diag_poll_count,
 								g_dispatch, g_flash_timer, g_flash_enable,
 								g_calib_state, g_gameplay, g_fire_timer,
-								static_cast<s32>(g_screen_x), g_held_buttons);
+								static_cast<s32>(g_screen_x), g_held_buttons, g_buttons_proc, g_pos_valid,
+								g_dark_count, g_progressive, g_frame_count, g_prog_done,
+								g_game_state, g_calib_sub, g_calib_next);
 						}
 					}
 
@@ -731,7 +862,10 @@ namespace usb_lightgun
 			{
 				dark_delay = gc.dark_delay;
 				dark_duration = gc.dark_duration;
-				Console.WriteLn(fmt::format("(GunCon2) Port {}: dark inject enabled (delay={}, duration={})", port, dark_delay, dark_duration));
+				fire_once = gc.fire_once;
+
+				Console.WriteLn(fmt::format("(GunCon2) Port {}: dark inject enabled (delay={}us, duration={}us, fire_once={})",
+					port, dark_delay, dark_duration, fire_once ? "YES" : "NO"));
 			}
 
 			return;
@@ -862,16 +996,16 @@ namespace usb_lightgun
 
 		s->custom_config = USB::GetConfigBool(si, s->port, TypeName(), "custom_config", false);
 
-		// GUI override for dark inject timing (-1 = Auto, use GameConfig. 0+ = actual value).
+		// GUI override for dark inject timing (-1 = Auto, use GameConfig. 0+ = value in polls, converted to µs).
 		const s32 gui_delay = USB::GetConfigInt(si, s->port, TypeName(), "dark_delay", -1);
 		const s32 gui_duration = USB::GetConfigInt(si, s->port, TypeName(), "dark_duration", -1);
 		if (gui_delay >= 0 || gui_duration >= 0)
 		{
 			if (gui_delay >= 0)
-				s->dark_delay = static_cast<u16>(gui_delay);
+				s->dark_delay = static_cast<u32>(gui_delay) * 8000; // GUI polls → µs
 			if (gui_duration >= 0)
-				s->dark_duration = static_cast<u16>(gui_duration);
-			Console.WriteLn("(GunCon2) Port %u: GUI override dark inject (delay=%u, duration=%u)",
+				s->dark_duration = static_cast<u32>(gui_duration) * 8000; // GUI polls → µs
+			Console.WriteLn("(GunCon2) Port %u: GUI override dark inject (delay=%uus, duration=%uus)",
 				s->port, s->dark_delay, s->dark_duration);
 		}
 
