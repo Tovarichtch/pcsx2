@@ -4883,6 +4883,12 @@ SCES-50411:
   name: "Vampire Night"
   region: "PAL-M5"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,001ED720,word,24020002
 SCES-50459:
   name: "Dropship - United Peace Force"
   region: "PAL-M5"
@@ -5123,6 +5129,12 @@ SCES-50889:
   name: "Ninja Assault"
   region: "PAL-M5"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,00103B8C,word,24020002
   gsHWFixes:
     preloadFrameData: 1 # Fixes intro captions not displaying.
 SCES-50916:
@@ -5821,6 +5833,12 @@ SCES-52529:
 SCES-52530:
   name: "Crisis Zone"
   region: "PAL-M5"
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 1 frame (patches countdown read)
+        patch=0,EE,0011FD78,word,24030001
   gsHWFixes:
     textureInsideRT: 2 # Fixes Grassmarket district boss model.
 SCES-52564:
@@ -7432,6 +7450,12 @@ SCKA-20038:
   region: "NTSC-K"
   gsHWFixes:
     textureInsideRT: 2 # Fixes Grassmarket district boss model.
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,00196624,word,24030002
 SCKA-20039:
   name: "데스바이디그리스 철권 니나"
   name-en: "Death by Degrees - Tekken - Nina"
@@ -10919,6 +10943,12 @@ SCPS-56015:
   region: "NTSC-K"
   gsHWFixes:
     preloadFrameData: 1 # Fixes intro captions not displaying.
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,001038F0,word,24020002
 SCPS-56016:
   name: "Axel Impact - The Extreme Racing" # DT Racer; no listed Korean name on ReDump
   region: "NTSC-K"
@@ -16641,6 +16671,12 @@ SLES-50935:
 SLES-50936:
   name: "Endgame"
   region: "PAL-M5"
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,00105174,word,24020002
 SLES-50937:
   name: "LEGO Football Mania"
   region: "PAL-M8"
@@ -17545,6 +17581,12 @@ SLES-51289:
   name: "Gunfighter 2 - Legend of Jesse James"
   region: "PAL-M5"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 1 frame (patches countdown read)
+        patch=0,EE,001D2E5C,word,24020001
   gameFixes:
     - GIFFIFOHack # Fixes flickering textures.
     - EETimingHack # Further required to stop flickering.
@@ -18208,6 +18250,12 @@ SLES-51617:
   name: "Starsky & Hutch"
   region: "PAL-M5"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,001F8870,word,24030002
   gsHWFixes:
     halfPixelOffset: 5 # Aligns shadows better.
 SLES-51618:
@@ -18593,6 +18641,12 @@ SLES-51783:
   name: "Starsky & Hutch"
   region: "PAL-F-G"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,001F86F0,word,24030002
   gsHWFixes:
     halfPixelOffset: 5 # Aligns shadows better.
 SLES-51785:
@@ -20840,6 +20894,12 @@ SLES-52620:
   name: "Guncom 2"
   region: "PAL-M3"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 1 frame (patches countdown read)
+        patch=0,EE,00283BF8,word,24020001
   gsHWFixes:
     PCRTCOverscan: 1 # Fixes offscreen image.
 SLES-52621:
@@ -31414,6 +31474,12 @@ SLKA-25090:
   region: "NTSC-K"
   gsHWFixes:
     halfPixelOffset: 5 # Aligns shadows better.
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,001FEBF8,word,24030002
 SLKA-25091:
   name: "반숙영웅 vs. 3D"
   name-sort: "Bansug Yeongung vs. 3D"
@@ -38845,6 +38911,12 @@ SLPM-62401:
   name-sort: "ですくりむぞんOX+"
   name-en: "Death Crimson OX+"
   region: "NTSC-J"
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 1 frame (patches countdown read)
+        patch=0,EE,00283354,word,24020001
   gsHWFixes:
     PCRTCOverscan: 1 # Fixes offscreen image.
 SLPM-62403:
@@ -55506,6 +55578,12 @@ SLPS-20218:
   region: "NTSC-J"
   gsHWFixes:
     preloadFrameData: 1 # Fixes intro captions not displaying.
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,00102C74,word,24020002
 SLPS-20219:
   name: "エッグマニア つかんで！まわして！どっすんぱず～る！！"
   name-sort: "えっぐまにあ つかんで！まわして！どっすんぱずーる！！"
@@ -57494,6 +57572,12 @@ SLPS-25077:
   name-en: "Vampire Night"
   region: "NTSC-J"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,001EB178,word,24020002
 SLPS-25078:
   name: "SSX TRICKY"
   name-sort: "SSX とりっきー"
@@ -64810,6 +64894,12 @@ SLUS-20221:
   name: "Vampire Night"
   region: "NTSC-U"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames (lw $v0,gp → li $v0,2)
+        patch=0,EE,001EB1F8,word,24020002
 SLUS-20222:
   name: "MTV - Music Generator 2"
   region: "NTSC-U"
@@ -65644,6 +65734,12 @@ SLUS-20389:
   name: "Endgame"
   region: "NTSC-U"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,0010513C,word,24020002
 SLUS-20390:
   name: "Risk - Global Domination"
   region: "NTSC-U"
@@ -66191,6 +66287,12 @@ SLUS-20492:
   name: "Ninja Assault"
   region: "NTSC-U"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,00103864,word,24020002
   gsHWFixes:
     preloadFrameData: 1 # Fixes intro captions not displaying.
 SLUS-20493:
@@ -66872,6 +66974,12 @@ SLUS-20619:
   name: "Starsky & Hutch"
   region: "NTSC-U"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames (uses $v1)
+        patch=0,EE,001FBEB0,word,24030002
   gsHWFixes:
     halfPixelOffset: 5 # Aligns shadows better.
 SLUS-20620:
@@ -68572,6 +68680,12 @@ SLUS-20927:
   name: "Time Crisis - Crisis Zone"
   region: "NTSC-U"
   compat: 5
+  patches:
+    default:
+      content: |-
+        author=Tovarichtch
+        // GunCon2: reduce settle timer to 2 frames
+        patch=0,EE,00196684,word,24030002
   gsHWFixes:
     textureInsideRT: 2 # Fixes Grassmarket district boss model.
 SLUS-20928:
