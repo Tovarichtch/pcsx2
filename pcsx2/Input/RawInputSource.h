@@ -45,7 +45,6 @@ public:
 	TinyString ConvertKeyToIcon(InputBindingKey key) override;
 
 	/// Called from MainWindow::nativeEvent to dispatch WM_INPUT messages.
-	/// render_hwnd is the display surface window for coordinate conversion.
 	void ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd);
 
 	/// Returns the pointer index for a mouse with the given device path, or nullopt if not found.
@@ -62,9 +61,19 @@ private:
 		std::string display_name;
 		u32 pointer_index = 0;
 		u32 button_state = 0;
+		bool seen_absolute = false; // true once we receive an ABS event from this device
 	};
 
+	/// Enumerate all HID mice via GetRawInputDeviceList.
 	bool EnumerateRawMice();
+
+	/// Assign pointer indices using saved device_path mappings from ini.
+	/// First pass: match stored paths. Second pass: fill remaining slots.
+	/// On first run, saves current assignment to ini.
+	void AssignPointerIndices();
+
+	/// Rebuild m_handle_to_mouse_index from m_mice.
+	void RebuildHandleMap();
 
 	static std::string GetDeviceIdentifier(u32 index);
 

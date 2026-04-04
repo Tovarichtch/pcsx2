@@ -46,6 +46,11 @@ bool RawInputSource::Initialize(SettingsInterface& si, std::unique_lock<std::mut
 		return false;
 	}
 
+	settings_lock.unlock();
+	AssignPointerIndices();
+	settings_lock.lock();
+	RebuildHandleMap();
+
 	m_initialized = true;
 
 	if (m_mice.empty())
@@ -69,26 +74,149 @@ void RawInputSource::UpdateSettings(SettingsInterface& si, std::unique_lock<std:
 {
 }
 
-bool RawInputSource::ReloadDevices()
+static std::string GetDisplayNameForDevice(const std::string& device_path, const std::wstring& wdevice_path, u32 index)
 {
-	const size_t old_count = m_mice.size();
-
-	for (const auto& mouse : m_mice)
+	// Try to get the real USB product name via HID API.
+	std::string product_name;
+	if (!wdevice_path.empty())
 	{
-		const InputBindingKey key = MakeGenericControllerButtonKey(InputSourceType::RawInput, mouse.pointer_index, 0);
-		InputManager::OnInputDeviceDisconnected(key, GetDeviceIdentifier(mouse.pointer_index));
+		HANDLE hid_handle = CreateFileW(wdevice_path.c_str(), 0,
+			FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+		if (hid_handle != INVALID_HANDLE_VALUE)
+		{
+			wchar_t product_string[256] = {};
+			if (HidD_GetProductString(hid_handle, product_string, sizeof(product_string)) && product_string[0] != L'\0')
+				product_name = StringUtil::WideStringToUTF8String(product_string);
+			CloseHandle(hid_handle);
+		}
 	}
 
-	m_mice.clear();
-	m_handle_to_mouse_index.clear();
+	if (!product_name.empty())
+		return fmt::format("{} (Mouse {})", product_name, index);
 
-	if (!EnumerateRawMice())
+	// Fall back to VID/PID from device path.
+	std::string vid, pid;
+	const size_t vid_pos = device_path.find("VID_");
+	const size_t pid_pos = device_path.find("PID_");
+	if (vid_pos != std::string::npos && vid_pos + 8 <= device_path.size())
+		vid = device_path.substr(vid_pos + 4, 4);
+	if (pid_pos != std::string::npos && pid_pos + 8 <= device_path.size())
+		pid = device_path.substr(pid_pos + 4, 4);
+
+	if (!vid.empty() && !pid.empty())
+		return fmt::format("Mouse {} (VID:{} PID:{})", index, vid, pid);
+
+	return fmt::format("Mouse {}", index);
+}
+
+bool RawInputSource::ReloadDevices()
+{
+	// Re-enumerate raw mice. Match new HANDLEs to existing device_paths
+	// so that pointer_index stays stable mid-session.
+
+	UINT device_count = 0;
+	if (GetRawInputDeviceList(nullptr, &device_count, sizeof(RAWINPUTDEVICELIST)) == static_cast<UINT>(-1))
 		return false;
 
-	for (const auto& mouse : m_mice)
-		InputManager::OnInputDeviceConnected(GetDeviceIdentifier(mouse.pointer_index), mouse.display_name);
+	std::vector<RAWINPUTDEVICELIST> device_list(device_count);
+	if (GetRawInputDeviceList(device_list.data(), &device_count, sizeof(RAWINPUTDEVICELIST)) == static_cast<UINT>(-1))
+		return false;
 
-	return (m_mice.size() != old_count);
+	// Build a map of device_path → new HANDLE from the fresh enumeration.
+	std::unordered_map<std::string, HANDLE> new_path_to_handle;
+	for (UINT i = 0; i < device_count; i++)
+	{
+		if (device_list[i].dwType != RIM_TYPEMOUSE)
+			continue;
+
+		UINT name_size = 0;
+		GetRawInputDeviceInfoW(device_list[i].hDevice, RIDI_DEVICENAME, nullptr, &name_size);
+		if (name_size == 0)
+			continue;
+
+		std::wstring wpath(name_size, L'\0');
+		if (GetRawInputDeviceInfoW(device_list[i].hDevice, RIDI_DEVICENAME, wpath.data(), &name_size) == static_cast<UINT>(-1))
+			continue;
+
+		while (!wpath.empty() && wpath.back() == L'\0')
+			wpath.pop_back();
+
+		std::string path = StringUtil::WideStringToUTF8String(wpath);
+		if (!path.empty())
+			new_path_to_handle[std::move(path)] = device_list[i].hDevice;
+	}
+
+	// Update existing mice: refresh HANDLE, detect removed devices.
+	bool changed = false;
+	for (auto it = m_mice.begin(); it != m_mice.end();)
+	{
+		auto path_it = new_path_to_handle.find(it->device_path);
+		if (path_it != new_path_to_handle.end())
+		{
+			// Device still present — update HANDLE if changed.
+			if (it->handle != path_it->second)
+			{
+				it->handle = path_it->second;
+				Console.WriteLn("(RawInput) Updated handle for pointer %u (%s).", it->pointer_index, it->display_name.c_str());
+			}
+			new_path_to_handle.erase(path_it); // consumed
+			++it;
+		}
+		else
+		{
+			// Device removed.
+			Console.WriteLn("(RawInput) Device removed: pointer %u (%s).", it->pointer_index, it->display_name.c_str());
+			const InputBindingKey key = MakeGenericControllerButtonKey(InputSourceType::RawInput, it->pointer_index, 0);
+			InputManager::OnInputDeviceDisconnected(key, GetDeviceIdentifier(it->pointer_index));
+			it = m_mice.erase(it);
+			changed = true;
+		}
+	}
+
+	// Any remaining entries in new_path_to_handle are newly connected devices.
+	for (const auto& [path, handle] : new_path_to_handle)
+	{
+		if (m_mice.size() >= InputManager::MAX_POINTER_DEVICES)
+			break;
+
+		// Find a free pointer_index.
+		u32 free_slot = 0;
+		while (free_slot < InputManager::MAX_POINTER_DEVICES)
+		{
+			bool taken = false;
+			for (const auto& m : m_mice)
+				if (m.pointer_index == free_slot) { taken = true; break; }
+			if (!taken)
+				break;
+			free_slot++;
+		}
+		if (free_slot >= InputManager::MAX_POINTER_DEVICES)
+			break;
+
+		// Get display name.
+		std::wstring wpath;
+		{
+			const std::wstring tmp = StringUtil::UTF8StringToWideString(path);
+			wpath = tmp;
+		}
+		std::string display_name = GetDisplayNameForDevice(path, wpath, free_slot);
+
+		RawMouseDevice dev;
+		dev.handle = handle;
+		dev.device_path = path;
+		dev.display_name = std::move(display_name);
+		dev.pointer_index = free_slot;
+		dev.button_state = 0;
+		dev.seen_absolute = false;
+
+		Console.WriteLn("(RawInput) New device: pointer %u (%s).", dev.pointer_index, dev.display_name.c_str());
+		InputManager::OnInputDeviceConnected(GetDeviceIdentifier(dev.pointer_index), dev.display_name);
+		m_mice.push_back(std::move(dev));
+		changed = true;
+	}
+
+	RebuildHandleMap();
+	return changed;
 }
 
 void RawInputSource::Shutdown()
@@ -216,6 +344,11 @@ TinyString RawInputSource::ConvertKeyToIcon(InputBindingKey key)
 	return {};
 }
 
+// ========================================================================
+// Device enumeration + persistence
+// ========================================================================
+
+
 bool RawInputSource::EnumerateRawMice()
 {
 	UINT device_count = 0;
@@ -235,8 +368,7 @@ bool RawInputSource::EnumerateRawMice()
 		return false;
 	}
 
-	u32 mouse_count = 0;
-	for (UINT i = 0; i < device_count && mouse_count < InputManager::MAX_POINTER_DEVICES; i++)
+	for (UINT i = 0; i < device_count; i++)
 	{
 		if (device_list[i].dwType != RIM_TYPEMOUSE)
 			continue;
@@ -253,8 +385,6 @@ bool RawInputSource::EnumerateRawMice()
 			wdevice_path.resize(name_size, L'\0');
 			if (GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, wdevice_path.data(), &name_size) != static_cast<UINT>(-1))
 			{
-				// Trim trailing null characters — Windows includes the null terminator in name_size,
-				// which would embed a \0 in the std::string and break comparisons with ini values.
 				while (!wdevice_path.empty() && wdevice_path.back() == L'\0')
 					wdevice_path.pop_back();
 				device_path = StringUtil::WideStringToUTF8String(wdevice_path);
@@ -262,73 +392,130 @@ bool RawInputSource::EnumerateRawMice()
 		}
 
 		if (device_path.empty())
-		{
-			Console.Warning("(RawInput) Skipping mouse with no device path (handle=%p).", handle);
 			continue;
-		}
 
-		// Try to get the real USB product name via HID API.
-		std::string product_name;
-		{
-			HANDLE hid_handle = CreateFileW(wdevice_path.c_str(), 0,
-				FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-			if (hid_handle != INVALID_HANDLE_VALUE)
-			{
-				wchar_t product_string[256] = {};
-				if (HidD_GetProductString(hid_handle, product_string, sizeof(product_string)) && product_string[0] != L'\0')
-					product_name = StringUtil::WideStringToUTF8String(product_string);
-				CloseHandle(hid_handle);
-			}
-		}
-
-		// Build display name: prefer product name, fall back to VID/PID.
-		std::string display_name;
-		if (!product_name.empty())
-		{
-			display_name = fmt::format("{} (Mouse {})", product_name, mouse_count);
-		}
-		else
-		{
-			std::string vid, pid;
-			const size_t vid_pos = device_path.find("VID_");
-			const size_t pid_pos = device_path.find("PID_");
-			if (vid_pos != std::string::npos && vid_pos + 8 <= device_path.size())
-				vid = device_path.substr(vid_pos + 4, 4);
-			if (pid_pos != std::string::npos && pid_pos + 8 <= device_path.size())
-				pid = device_path.substr(pid_pos + 4, 4);
-
-			if (!vid.empty() && !pid.empty())
-				display_name = fmt::format("Mouse {} (VID:{} PID:{})", mouse_count, vid, pid);
-			else
-				display_name = fmt::format("Mouse {}", mouse_count);
-		}
+		std::string display_name = GetDisplayNameForDevice(device_path, wdevice_path, static_cast<u32>(m_mice.size()));
 
 		RawMouseDevice dev;
 		dev.handle = handle;
 		dev.device_path = std::move(device_path);
 		dev.display_name = std::move(display_name);
-		dev.pointer_index = mouse_count;
+		dev.pointer_index = 0; // assigned later by AssignPointerIndices
 		dev.button_state = 0;
+		dev.seen_absolute = false;
 
-		m_handle_to_mouse_index[handle] = mouse_count;
 		m_mice.push_back(std::move(dev));
-		mouse_count++;
-	}
-
-	if (mouse_count >= InputManager::MAX_POINTER_DEVICES)
-	{
-		u32 total_mice = 0;
-		for (UINT i = 0; i < device_count; i++)
-		{
-			if (device_list[i].dwType == RIM_TYPEMOUSE)
-				total_mice++;
-		}
-		if (total_mice > InputManager::MAX_POINTER_DEVICES)
-			Console.Warning("(RawInput) %u mice detected, only using first %u.", total_mice, InputManager::MAX_POINTER_DEVICES);
 	}
 
 	return true;
 }
+
+void RawInputSource::AssignPointerIndices()
+{
+	if (m_mice.empty())
+		return;
+
+	// Read stored device_path → pointer_index from ini.
+	std::string stored_paths[InputManager::MAX_POINTER_DEVICES];
+	bool has_stored = false;
+
+	for (u32 slot = 0; slot < InputManager::MAX_POINTER_DEVICES; slot++)
+	{
+		const std::string key = fmt::format("Pointer{}Device", slot);
+		stored_paths[slot] = Host::GetBaseStringSettingValue("RawInput", key.c_str(), "");
+		if (!stored_paths[slot].empty())
+			has_stored = true;
+	}
+
+	if (has_stored)
+	{
+		std::vector<bool> slot_taken(InputManager::MAX_POINTER_DEVICES, false);
+		std::vector<bool> mouse_assigned(m_mice.size(), false);
+
+		// First pass: exact device_path match.
+		for (u32 slot = 0; slot < InputManager::MAX_POINTER_DEVICES; slot++)
+		{
+			if (stored_paths[slot].empty())
+				continue;
+
+			for (size_t m = 0; m < m_mice.size(); m++)
+			{
+				if (!mouse_assigned[m] && m_mice[m].device_path == stored_paths[slot])
+				{
+					m_mice[m].pointer_index = slot;
+					slot_taken[slot] = true;
+					mouse_assigned[m] = true;
+					Console.WriteLn("(RawInput) Matched stored path → pointer %u: %s", slot, m_mice[m].display_name.c_str());
+					break;
+				}
+			}
+		}
+
+		// Second pass: unmatched mice get remaining free slots.
+		u32 next_free = 0;
+		for (size_t m = 0; m < m_mice.size(); m++)
+		{
+			if (mouse_assigned[m])
+				continue;
+
+			while (next_free < InputManager::MAX_POINTER_DEVICES && slot_taken[next_free])
+				next_free++;
+
+			if (next_free >= InputManager::MAX_POINTER_DEVICES)
+			{
+				Console.Warning("(RawInput) No free pointer slot for %s.", m_mice[m].display_name.c_str());
+				continue;
+			}
+
+			m_mice[m].pointer_index = next_free;
+			slot_taken[next_free] = true;
+			mouse_assigned[m] = true;
+			Console.WriteLn("(RawInput) Auto-assigned %s → pointer %u (no stored match).", m_mice[m].display_name.c_str(), next_free);
+		}
+
+		// Update display names to include the final pointer index.
+		for (auto& mouse : m_mice)
+		{
+			// Regenerate display name with correct index.
+			const std::wstring wpath = StringUtil::UTF8StringToWideString(mouse.device_path);
+			mouse.display_name = GetDisplayNameForDevice(mouse.device_path, wpath, mouse.pointer_index);
+		}
+	}
+	else
+	{
+		// No stored settings: enumerate order = pointer order.
+		// Cap at MAX_POINTER_DEVICES.
+		u32 idx = 0;
+		for (auto& mouse : m_mice)
+		{
+			if (idx >= InputManager::MAX_POINTER_DEVICES)
+				break;
+			mouse.pointer_index = idx++;
+		}
+
+		// Save to ini so it persists across reboots.
+		Console.WriteLn("(RawInput) No stored assignments, saving current order.");
+		for (const auto& mouse : m_mice)
+		{
+			if (mouse.pointer_index >= InputManager::MAX_POINTER_DEVICES)
+				continue;
+			const std::string key = fmt::format("Pointer{}Device", mouse.pointer_index);
+			Host::SetBaseStringSettingValue("RawInput", key.c_str(), mouse.device_path.c_str());
+		}
+		Host::CommitBaseSettingChanges();
+	}
+}
+
+void RawInputSource::RebuildHandleMap()
+{
+	m_handle_to_mouse_index.clear();
+	for (u32 i = 0; i < static_cast<u32>(m_mice.size()); i++)
+		m_handle_to_mouse_index[m_mice[i].handle] = i;
+}
+
+// ========================================================================
+// Queries
+// ========================================================================
 
 std::optional<u32> RawInputSource::GetPointerIndexForDevicePath(const std::string_view device_path) const
 {
@@ -348,6 +535,10 @@ std::vector<std::pair<std::string, std::string>> RawInputSource::GetRawMouseDevi
 	return result;
 }
 
+// ========================================================================
+// Event processing
+// ========================================================================
+
 void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 {
 	if (!m_initialized || raw->header.dwType != RIM_TYPEMOUSE)
@@ -365,12 +556,11 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 
 	const HWND coord_hwnd = render_hwnd ? render_hwnd : m_hwnd;
 
-	// DIAG: log first 5 motion events per device to check flags and coordinates
-	static std::array<u32, InputManager::MAX_POINTER_DEVICES> s_diag_move_count = {};
-	const bool diag_should_log_move = (pointer_index < s_diag_move_count.size() && s_diag_move_count[pointer_index] < 5);
-
+	// Position — absolute devices only (lightguns).
 	if (rm.usFlags & MOUSE_MOVE_ABSOLUTE)
 	{
+		mouse.seen_absolute = true;
+
 		const bool is_virtual_desktop = (rm.usFlags & MOUSE_VIRTUAL_DESKTOP) != 0;
 		const int screen_w = GetSystemMetrics(is_virtual_desktop ? SM_CXVIRTUALSCREEN : SM_CXSCREEN);
 		const int screen_h = GetSystemMetrics(is_virtual_desktop ? SM_CYVIRTUALSCREEN : SM_CYSCREEN);
@@ -387,47 +577,18 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 				pt.y += GetSystemMetrics(SM_YVIRTUALSCREEN);
 			}
 
-			// DIAG: log absolute position details
-			if (diag_should_log_move)
-			{
-				Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u ABS raw=(%ld,%ld) flags=0x%04X screen=%dx%d → pixel=(%ld,%ld) hwnd=%p render=%p",
-					mouse_idx, pointer_index, rm.lLastX, rm.lLastY, rm.usFlags, screen_w, screen_h,
-					pt.x, pt.y, coord_hwnd, render_hwnd);
-			}
-
 			if (ScreenToClient(coord_hwnd, &pt))
 			{
-				// DIAG: log client-space position
-				if (diag_should_log_move)
-				{
-					Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u ScreenToClient OK → client=(%ld,%ld)",
-						mouse_idx, pointer_index, pt.x, pt.y);
-					s_diag_move_count[pointer_index]++;
-				}
-
 				InputManager::UpdatePointerAbsolutePosition(
 					pointer_index,
 					static_cast<float>(pt.x),
 					static_cast<float>(pt.y));
 			}
-			else if (diag_should_log_move)
-			{
-				// DIAG: log ScreenToClient failure
-				Console.Warning("(DIAG:RawInput) mouse[%u] ptr=%u ScreenToClient FAILED (hwnd=%p err=%u)",
-					mouse_idx, pointer_index, coord_hwnd, GetLastError());
-				s_diag_move_count[pointer_index]++;
-			}
 		}
 	}
-	else if (diag_should_log_move)
-	{
-		// DIAG: log relative mouse event (lightgun should never be here)
-		Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u RELATIVE delta=(%ld,%ld) flags=0x%04X — IGNORED (not absolute)",
-			mouse_idx, pointer_index, rm.lLastX, rm.lLastY, rm.usFlags);
-		s_diag_move_count[pointer_index]++;
-	}
+	// Relative mice: position silently ignored. They use the Qt pointer path.
 
-	// DIAG: log button events
+	// Buttons — always processed for all devices.
 	static constexpr struct
 	{
 		USHORT down_flag;
@@ -443,9 +604,6 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 	{
 		if (rm.usButtonFlags & bm.down_flag)
 		{
-			// DIAG: log button press
-			Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u button %u DOWN", mouse_idx, pointer_index, bm.button_index);
-
 			mouse.button_state |= (1u << bm.button_index);
 			InputManager::InvokeEvents(
 				MakeGenericControllerButtonKey(InputSourceType::RawInput, pointer_index, bm.button_index),
@@ -453,9 +611,6 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 		}
 		else if (rm.usButtonFlags & bm.up_flag)
 		{
-			// DIAG: log button release
-			Console.WriteLn("(DIAG:RawInput) mouse[%u] ptr=%u button %u UP", mouse_idx, pointer_index, bm.button_index);
-
 			mouse.button_state &= ~(1u << bm.button_index);
 			InputManager::InvokeEvents(
 				MakeGenericControllerButtonKey(InputSourceType::RawInput, pointer_index, bm.button_index),
