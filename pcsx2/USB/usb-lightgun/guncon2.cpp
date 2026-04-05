@@ -641,7 +641,7 @@ namespace usb_lightgun
 			calib_done_btn = gc.calib_done_btn;
 			if (gc.calib_done_btn != CALIB_BTN_NONE)
 			{
-				static const char* btn_names[] = {"NONE", "A/B", "START", "OFFSCREEN"};
+				static const char* btn_names[] = {"NONE", "A/B", "START", "OFFSCREEN", "AUTO"};
 				Console.WriteLn(fmt::format("(GunCon2) Port {}: calibration done button = {}", port, btn_names[gc.calib_done_btn]));
 			}
 
