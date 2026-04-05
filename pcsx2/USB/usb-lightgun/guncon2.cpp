@@ -51,13 +51,13 @@ namespace usb_lightgun
 	};
 
 	// Button the player presses to confirm calibration is done.
-	enum CalibDoneBtn : u8
+	enum class CalibDoneBtn : u8
 	{
-		CALIB_BTN_NONE  = 0, // No button lock (GF2: no_photodiode, locked at boot)
-		CALIB_BTN_AB    = 1, // A or B on GunCon2 (Namco, DCOX, GC2)
-		CALIB_BTN_START = 2, // START on GunCon2 (Capcom DS, GS, REDA)
-		CALIB_BTN_OFF   = 3, // Offscreen shot
-		CALIB_BTN_AUTO  = 4, // Auto-lock on first SET_PARAM after trigger (VC — no button needed)
+		None     = 0, // No button lock (GF2: no_photodiode, locked at boot)
+		AB       = 1, // A or B on GunCon2 (Namco, DCOX, GC2)
+		Start    = 2, // START on GunCon2 (Capcom DS, GS, REDA)
+		Offscreen = 3, // Offscreen shot
+		Auto     = 4, // Auto-lock after SET_PARAM silence (VC — no button needed)
 	};
 
 	// Right pain in the arse. Different games seem to have different scales..
@@ -85,48 +85,48 @@ namespace usb_lightgun
 		// fire_once: true = calibration only, false = every shot (Sega VC).
 		// calib_done_btn: AB/START/OFF/NONE — button that confirms calibration is done.
 		//                                       sx       sy     cx   cy    w    h   dark nopd  done_btn       dly dur  f1
-		{"SLPM-62401",  89.75f, 113.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     0, 0, false}, // Death Crimson OX+ (J) NTSC vanilla
-		{"SLES-50930",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Dino Stalker (E, En) PAL Capcom vanilla
-		{"SLES-51095",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Dino Stalker (E, Fr) PAL Capcom vanilla
-		{"SLES-51096",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Dino Stalker (E, De) PAL Capcom vanilla
-		{"SLUS-20485",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Dino Stalker (U) NTSC Capcom vanilla
-		{"SLUS-20389",  89.25f,  93.5f,  422, 134, 640, 240, 0, false, CALIB_BTN_AB,     3, 1, true},  // Endgame (U) NTSC (untested)
-		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, 0, false, CALIB_BTN_AB,     3, 1, true},  // Endgame (E) PAL (untested)
-		{"SLPM-65060", 100.0f,  101.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Gun Survivor 2 (J) NTSC Capcom vanilla (dark inject pollutes SDK accum)
-		{"SLPM-65139", 100.0f,  100.0f,  422, 134, 512, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Gun Survivor 3 (J) NTSC Capcom vanilla
-		{"SLPM-67529", 100.0f,  100.0f,  422, 134, 512, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // Gun Survivor 3 (KR) NTSC Capcom vanilla
-		{"SLPM-65245", 100.0f,  101.25f, 422, 134, 640, 224, 0, false, CALIB_BTN_START,  3, 1, true},  // Gun Survivor 4 (J) NTSC Capcom
-		{"SLES-52620",  89.75f, 112.0f,  422, 148, 640, 256, 0, false, CALIB_BTN_AB,     0, 0, false}, // Guncom 2 (E) PAL vanilla
-		{"SLES-51289", 105.0f,   88.0f,  422, 164, 512, 256, 0, true,  CALIB_BTN_NONE,   3, 1, true},  // Gunfighter II (E) PAL no_photodiode
-		{"SLPS-25165",  90.0f,  105.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Gunvari Collection (J) NTSC Namco
-		{"SCES-50889",  90.0f,   97.5f,  422, 169, 640, 240, 0, false, CALIB_BTN_AB,     3, 1, true},  // Ninja Assault (E) PAL Namco
-		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, 0, false, CALIB_BTN_AB,     3, 1, true},  // Ninja Assault (J) NTSC Namco
-		{"SCPS-56015",  90.0f,   92.0f,  422, 134, 640, 240, 0, false, CALIB_BTN_AB,     3, 1, true},  // Ninja Assault (KR) NTSC Namco
-		{"SLUS-20492",  90.0f,   92.0f,  422, 134, 640, 240, 0, false, CALIB_BTN_AB,     3, 1, true},  // Ninja Assault (U) NTSC Namco
-		{"SLES-51448",  90.25f, 108.0f,  422, 134, 640, 225, 0, false, CALIB_BTN_START,  3, 1, true},  // RE Dead Aim (E) PAL
-		{"SLUS-20669",  90.5f,  114.0f,  422, 134, 640, 240, 0, false, CALIB_BTN_START,  3, 1, true},  // RE Dead Aim (U) NTSC
-		{"SLES-50650", 100.0f,  100.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_START,  0, 0, false}, // RE Survivor 2 (E) PAL Capcom vanilla (dark inject pollutes SDK accum)
-		{"SLES-51617",  90.0f,   82.5f,  422, 134, 640, 256, 0, true,  CALIB_BTN_AB,     0, 0, false}, // Starsky & Hutch (E, En) PAL vanilla+no_photodiode
-		{"SLES-51783",  90.0f,   82.5f,  422, 134, 640, 256, 0, true,  CALIB_BTN_AB,     0, 0, false}, // Starsky & Hutch (E, Fr/De) PAL vanilla+no_photodiode
-		{"SLKA-25090",  90.0f,  104.5f,  422, 134, 640, 224, 0, true,  CALIB_BTN_AB,     0, 0, false}, // Starsky & Hutch (KR) NTSC vanilla+no_photodiode
-		{"SLUS-20619",  90.0f,  104.5f,  422, 134, 640, 224, 0, true,  CALIB_BTN_AB,     0, 0, false}, // Starsky & Hutch (U) NTSC vanilla+no_photodiode
-		{"SCES-50300",  90.0f,  103.0f,  437, 164, 640, 256, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis II (E) PAL Namco dist_8101
-		{"SLPS-20122",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis II (J) NTSC Namco dist_8101
-		{"SCKA-20002",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis II (KR) NTSC Namco dist_8101
-		{"SLUS-20219",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis II (U) NTSC Namco dist_8101
-		{"SCAJ-20060",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis 3 (Asia) NTSC Namco dist_8101
-		{"SCES-51844",  90.0f,  103.0f,  437, 164, 640, 256, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis 3 (E) PAL Namco dist_8101
-		{"SLPS-25290",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis 3 (J) NTSC Namco dist_8101
-		{"SCKA-20015",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis 3 (KR) NTSC Namco dist_8101
-		{"SLUS-20645",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Time Crisis 3 (U) NTSC Namco dist_8101
-		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, 0, false, CALIB_BTN_AB,     3, 1, true},  // Crisis Zone (E) PAL Namco
-		{"SCKA-20038",  90.0f,  104.5f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Crisis Zone (KR) NTSC Namco
-		{"SLUS-20927",  90.0f,  104.5f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Crisis Zone (U) NTSC Namco VERIFIED
-		{"SCES-50411",  89.75f, 115.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Vampire Night (E) PAL Namco
-		{"SLPS-25077",  89.75f, 105.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Vampire Night (J) NTSC Namco
-		{"SLUS-20221",  89.75f, 105.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Vampire Night (U) NTSC Namco
-		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, 0, false, CALIB_BTN_AUTO,      3,     3, true},  // Virtua Cop Elite Edition (E) PAL Sega (3f delay + 3f dark)
-		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, 0, false, CALIB_BTN_AUTO,      4,     3, true},  // Virtua Cop Re-Birth (J) NTSC Sega (4f delay + 3f dark)
+		{"SLPM-62401",  89.75f, 113.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     0, 0, false}, // Death Crimson OX+ (J) NTSC vanilla
+		{"SLES-50930",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, En) PAL Capcom vanilla
+		{"SLES-51095",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, Fr) PAL Capcom vanilla
+		{"SLES-51096",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, De) PAL Capcom vanilla
+		{"SLUS-20485",  89.5f,  103.0f,  422, 134, 512, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (U) NTSC Capcom vanilla
+		{"SLUS-20389",  89.25f,  93.5f,  422, 134, 640, 240, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Endgame (U) NTSC (untested)
+		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Endgame (E) PAL (untested)
+		{"SLPM-65060", 100.0f,  101.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 2 (J) NTSC Capcom vanilla (dark inject pollutes SDK accum)
+		{"SLPM-65139", 100.0f,  100.0f,  422, 134, 512, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (J) NTSC Capcom vanilla
+		{"SLPM-67529", 100.0f,  100.0f,  422, 134, 512, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (KR) NTSC Capcom vanilla
+		{"SLPM-65245", 100.0f,  101.25f, 422, 134, 640, 224, 0, false, CalibDoneBtn::Start,  3, 1, true},  // Gun Survivor 4 (J) NTSC Capcom
+		{"SLES-52620",  89.75f, 112.0f,  422, 148, 640, 256, 0, false, CalibDoneBtn::AB,     0, 0, false}, // Guncom 2 (E) PAL vanilla
+		{"SLES-51289", 105.0f,   88.0f,  422, 164, 512, 256, 0, true,  CalibDoneBtn::None,   3, 1, true},  // Gunfighter II (E) PAL no_photodiode
+		{"SLPS-25165",  90.0f,  105.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Gunvari Collection (J) NTSC Namco
+		{"SCES-50889",  90.0f,   97.5f,  422, 169, 640, 240, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (E) PAL Namco
+		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (J) NTSC Namco
+		{"SCPS-56015",  90.0f,   92.0f,  422, 134, 640, 240, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (KR) NTSC Namco
+		{"SLUS-20492",  90.0f,   92.0f,  422, 134, 640, 240, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (U) NTSC Namco
+		{"SLES-51448",  90.25f, 108.0f,  422, 134, 640, 225, 0, false, CalibDoneBtn::Start,  3, 1, true},  // RE Dead Aim (E) PAL
+		{"SLUS-20669",  90.5f,  114.0f,  422, 134, 640, 240, 0, false, CalibDoneBtn::Start,  3, 1, true},  // RE Dead Aim (U) NTSC
+		{"SLES-50650", 100.0f,  100.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::Start,  0, 0, false}, // RE Survivor 2 (E) PAL Capcom vanilla (dark inject pollutes SDK accum)
+		{"SLES-51617",  90.0f,   82.5f,  422, 134, 640, 256, 0, true,  CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, En) PAL vanilla+no_photodiode
+		{"SLES-51783",  90.0f,   82.5f,  422, 134, 640, 256, 0, true,  CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, Fr/De) PAL vanilla+no_photodiode
+		{"SLKA-25090",  90.0f,  104.5f,  422, 134, 640, 224, 0, true,  CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (KR) NTSC vanilla+no_photodiode
+		{"SLUS-20619",  90.0f,  104.5f,  422, 134, 640, 224, 0, true,  CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (U) NTSC vanilla+no_photodiode
+		{"SCES-50300",  90.0f,  103.0f,  437, 164, 640, 256, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (E) PAL Namco dist_8101
+		{"SLPS-20122",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (J) NTSC Namco dist_8101
+		{"SCKA-20002",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (KR) NTSC Namco dist_8101
+		{"SLUS-20219",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (U) NTSC Namco dist_8101
+		{"SCAJ-20060",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (Asia) NTSC Namco dist_8101
+		{"SCES-51844",  90.0f,  103.0f,  437, 164, 640, 256, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (E) PAL Namco dist_8101
+		{"SLPS-25290",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (J) NTSC Namco dist_8101
+		{"SCKA-20015",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (KR) NTSC Namco dist_8101
+		{"SLUS-20645",  89.75f, 104.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (U) NTSC Namco dist_8101
+		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Crisis Zone (E) PAL Namco
+		{"SCKA-20038",  90.0f,  104.5f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Crisis Zone (KR) NTSC Namco
+		{"SLUS-20927",  90.0f,  104.5f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Crisis Zone (U) NTSC Namco VERIFIED
+		{"SCES-50411",  89.75f, 115.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Vampire Night (E) PAL Namco
+		{"SLPS-25077",  89.75f, 105.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Vampire Night (J) NTSC Namco
+		{"SLUS-20221",  89.75f, 105.0f,  422, 134, 640, 224, 0, false, CalibDoneBtn::AB,     3, 1, true},  // Vampire Night (U) NTSC Namco
+		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, 0, false, CalibDoneBtn::Auto,      3,     3, true},  // Virtua Cop Elite Edition (E) PAL Sega (3f delay + 3f dark)
+		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, 0, false, CalibDoneBtn::Auto,      4,     3, true},  // Virtua Cop Re-Birth (J) NTSC Sega (4f delay + 3f dark)
 	};
 
 	static constexpr u32 GUNCON2_VC_SETTLE_POLLS = 750; // ~6s at ~125Hz USB — SET_PARAM silence = calibration done
@@ -157,7 +157,7 @@ namespace usb_lightgun
 	struct GunCon2State
 	{
 		explicit GunCon2State(u32 port_);
-		~GunCon2State();
+		~GunCon2State(); // Resets g_guncon2_display_dark when last instance destroyed.
 
 		USBDevice dev{};
 		USBDesc desc{};
@@ -204,10 +204,10 @@ namespace usb_lightgun
 		// Lock condition: has_triggered && calib_responded && done_button pressed.
 		bool calibration_locked = false;
 		bool photodiode_disabled = false; // Permanent lock for no_photodiode games — never unlocks.
-		CalibDoneBtn calib_done_btn = CALIB_BTN_NONE;
+		CalibDoneBtn calib_done_btn = CalibDoneBtn::None;
 		bool has_triggered = false;    // Player has pressed trigger at least once.
 		bool calib_responded = false;  // Game sent SET_PARAM after has_triggered.
-		u32 pending_poll_count = 0;    // Polls since last SET_PARAM (CALIB_BTN_AUTO only — VC).
+		u32 pending_poll_count = 0;    // Polls since last SET_PARAM (CalibDoneBtn::Auto only — VC).
 
 		// Trigger-delayed dark injection: replaces photodiode for games with configured dark_delay.
 		// Real GunCon2 on CRT: photodiode detects dark within the same vsync.
@@ -302,8 +302,8 @@ namespace usb_lightgun
 		GunCon2State* const us = USB_CONTAINER_OF(dev, GunCon2State, dev);
 
 		// Apply per-game configuration on the first control packet.
-		// Always runs to apply features (lock, threshold, no_photodiode) by serial.
-		// Position values (scale, center, screen) are skipped if custom_config is set.
+		// Note: custom_config guard removed — AutoConfigure() handles it internally
+		// (skips position values when custom_config=true, always applies feature flags).
 		if (!us->auto_config_done)
 		{
 			us->AutoConfigure();
@@ -329,16 +329,16 @@ namespace usb_lightgun
 			// Calibration lock logic in SET_PARAM:
 			// - Button-based (calib_done_btn != NONE/AUTO): mark calib_responded.
 			//   Lock happens in poll handler when the done button is pressed.
-			// - CALIB_BTN_AUTO (VC): reset settle counter on every SET_PARAM.
+			// - CalibDoneBtn::Auto (VC): reset settle counter on every SET_PARAM.
 			//   Lock happens after 750 polls (~6s) of SET_PARAM silence.
 			// - no_photodiode (GF2): already locked at boot, ignore all SET_PARAMs.
-			if (us->calib_done_btn == CALIB_BTN_AUTO)
+			if (us->calib_done_btn == CalibDoneBtn::Auto)
 			{
 				// Any SET_PARAM resets the settle counter — player is still calibrating.
 				if (us->has_triggered && !us->calibration_locked)
 					us->pending_poll_count = 0;
 			}
-			else if (us->calib_done_btn != CALIB_BTN_NONE)
+			else if (us->calib_done_btn != CalibDoneBtn::None)
 			{
 				// Button-based games: mark that the game responded to calibration.
 				if (us->has_triggered && !us->calibration_locked)
@@ -440,6 +440,8 @@ namespace usb_lightgun
 								us->calibration_pos_y = pos_y;
 								us->dark_inject_fired = true;
 							}
+							// Reset edge-detect when trigger released and no calibration active,
+							// allowing a fresh dark inject on the next trigger press.
 							if (!us->calibration_active && !(us->button_state & (1u << BID_TRIGGER)))
 								us->dark_inject_fired = false;
 
@@ -501,9 +503,9 @@ namespace usb_lightgun
 						}
 					}
 
-					// CALIB_BTN_AUTO settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
+					// CalibDoneBtn::Auto settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
 					// Counter resets on every SET_PARAM. Counts from first trigger press.
-					if (us->calib_done_btn == CALIB_BTN_AUTO &&
+					if (us->calib_done_btn == CalibDoneBtn::Auto &&
 						us->has_triggered && !us->calibration_locked)
 					{
 						if (++us->pending_poll_count >= GUNCON2_VC_SETTLE_POLLS)
@@ -518,19 +520,19 @@ namespace usb_lightgun
 					// has_triggered: player has fired at least once.
 					// calib_responded: game sent SET_PARAM after trigger (calibration happened).
 					// Both conditions prevent premature lock (boot buttons, logo skips).
-					if (us->calib_done_btn != CALIB_BTN_NONE && us->calib_done_btn != CALIB_BTN_AUTO &&
+					if (us->calib_done_btn != CalibDoneBtn::None && us->calib_done_btn != CalibDoneBtn::Auto &&
 						us->has_triggered && us->calib_responded && !us->calibration_locked)
 					{
 						bool done_pressed = false;
 						switch (us->calib_done_btn)
 						{
-						case CALIB_BTN_AB:
+						case CalibDoneBtn::AB:
 							done_pressed = (us->button_state & ((1u << BID_A) | (1u << BID_B))) != 0;
 							break;
-						case CALIB_BTN_START:
+						case CalibDoneBtn::Start:
 							done_pressed = (us->button_state & (1u << BID_START)) != 0;
 							break;
-						case CALIB_BTN_OFF:
+						case CalibDoneBtn::Offscreen:
 							done_pressed = (us->button_state & (1u << BID_SHOOT_OFFSCREEN)) != 0;
 							break;
 						default:
@@ -620,13 +622,13 @@ namespace usb_lightgun
 				Console.WriteLn(fmt::format("(GunCon2) Custom dark threshold: entry={}, exit={}", gc.dark_threshold, gc.dark_threshold * 2));
 
 			// No-photodiode games: disable ring buffer dark permanently.
-			// Lock at boot ONLY for GF2 (CALIB_BTN_NONE): no calibration flow needed.
-			// Button-based games (e.g. S&H with CALIB_BTN_AB) need the calibration
+			// Lock at boot ONLY for GF2 (CalibDoneBtn::None): no calibration flow needed.
+			// Button-based games (e.g. S&H with CalibDoneBtn::AB) need the calibration
 			// flow: trigger → game responds → player presses button → lock.
 			if (gc.no_photodiode)
 			{
 				photodiode_disabled = true;
-				if (gc.calib_done_btn == CALIB_BTN_NONE)
+				if (gc.calib_done_btn == CalibDoneBtn::None)
 				{
 					calibration_locked = true;
 					Console.WriteLn(fmt::format("(GunCon2) Port {}: photodiode DISABLED + locked at boot", port));
@@ -639,9 +641,9 @@ namespace usb_lightgun
 
 			// Calibration done button: which button locks dark_inject after calibration.
 			calib_done_btn = gc.calib_done_btn;
-			if (gc.calib_done_btn != CALIB_BTN_NONE)
+			if (gc.calib_done_btn != CalibDoneBtn::None)
 			{
-				static const char* btn_names[] = {"NONE", "A/B", "START", "OFFSCREEN", "AUTO"};
+				static const char* btn_names[] = {"None", "A/B", "Start", "Offscreen", "Auto"};
 				Console.WriteLn(fmt::format("(GunCon2) Port {}: calibration done button = {}", port, btn_names[gc.calib_done_btn]));
 			}
 

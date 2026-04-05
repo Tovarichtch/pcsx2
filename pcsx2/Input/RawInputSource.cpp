@@ -200,17 +200,12 @@ bool RawInputSource::ReloadDevices()
 		if (m_mice.size() >= InputManager::MAX_POINTER_DEVICES)
 			break;
 
-		// Find a free pointer_index.
-		u32 free_slot = 0;
-		while (free_slot < InputManager::MAX_POINTER_DEVICES)
-		{
-			bool taken = false;
-			for (const auto& m : m_mice)
-				if (m.pointer_index == free_slot) { taken = true; break; }
-			if (!taken)
-				break;
-			free_slot++;
-		}
+		// Find a free pointer_index using a taken-slots bitmask.
+		u32 taken_mask = 0;
+		for (const auto& m : m_mice)
+			if (m.pointer_index < InputManager::MAX_POINTER_DEVICES)
+				taken_mask |= (1u << m.pointer_index);
+		const u32 free_slot = static_cast<u32>(__builtin_ctz(~taken_mask));
 		if (free_slot >= InputManager::MAX_POINTER_DEVICES)
 			break;
 
@@ -414,6 +409,9 @@ bool RawInputSource::EnumerateRawMice()
 
 		if (device_path.empty())
 			continue;
+
+		if (m_mice.size() >= InputManager::MAX_POINTER_DEVICES)
+			break;
 
 		std::string display_name = GetDisplayNameForDevice(device_path, wdevice_path, static_cast<u32>(m_mice.size()));
 
