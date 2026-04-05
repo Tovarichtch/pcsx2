@@ -1029,12 +1029,18 @@ namespace usb_lightgun
 		if (pointer_source == "Auto" || pointer_source.empty())
 		{
 			s->pointer_index = s->port;
+			const auto devices = InputManager::EnumerateRawPointerDevices();
+			if (s->pointer_index < devices.size())
+				Console.WriteLn("(GunCon2) Port %u: Auto pointer → %s", s->port, devices[s->pointer_index].second.c_str());
+			else
+				Console.WriteLn("(GunCon2) Port %u: Auto pointer → Mouse %u (not yet detected)", s->port, s->pointer_index);
 		}
 		else
 		{
 			// pointer_source is a device path — resolve to pointer index.
 			const std::optional<u32> idx = InputManager::GetPointerIndexForRawDevice(pointer_source);
 			s->pointer_index = idx.value_or(s->port);
+			Console.WriteLn("(GunCon2) Port %u: Manual pointer → index %u", s->port, s->pointer_index);
 		}
 
 		const std::string pointer_binding = USB::GetConfigString(si, s->port, TypeName(), "Pointer", "");
@@ -1143,7 +1149,7 @@ namespace usb_lightgun
 	static std::vector<std::pair<std::string, std::string>> GetPointerDeviceList()
 	{
 		std::vector<std::pair<std::string, std::string>> result;
-		result.emplace_back("Auto", "Auto (use USB port number)");
+		result.emplace_back("Auto", "Auto-detect by port order");
 
 		// Add all raw mouse devices, keyed by device_path for persistence.
 		for (const auto& [device_path, display_name] : InputManager::EnumerateRawPointerDevices())
