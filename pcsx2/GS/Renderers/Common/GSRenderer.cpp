@@ -90,11 +90,8 @@ void GSRenderer::UpdatePhotodiode()
 {
 	GSTexture* current = g_gs_device->GetCurrent();
 
-	m_photodiode_diag_frame++;
-
 	if (current)
 	{
-		m_photodiode_valid_count++;
 		const u32 write_idx = m_photodiode_frame % PHOTODIODE_RING_SIZE;
 		const u32 read_idx = (m_photodiode_frame + 1) % PHOTODIODE_RING_SIZE;
 
@@ -102,8 +99,6 @@ void GSRenderer::UpdatePhotodiode()
 		if (!m_photodiode_ring[write_idx])
 		{
 			m_photodiode_ring[write_idx] = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
-			if (m_photodiode_ring[write_idx])
-				Console.WriteLn("(DIAG:Photodiode) Ring[%u] created OK", write_idx);
 		}
 
 		// Copy center pixel of merged PCRTC output into ring slot.
@@ -143,20 +138,6 @@ void GSRenderer::UpdatePhotodiode()
 				else
 					set_dark = (lum < entry_thresh);
 
-				// DIAG: log every dark state transition (includes active thresholds for debugging).
-				if (set_dark != was_dark)
-					Console.WriteLn("(DIAG:Photodiode) PATH3: dark %s->%s frame=%u ring[%u] lum=%u px=0x%08X thresh=%u/%u",
-						was_dark ? "TRUE" : "FALSE", set_dark ? "TRUE" : "FALSE",
-						m_photodiode_diag_frame, read_idx, lum, px, entry_thresh, exit_thresh);
-
-				// DIAG: periodic heartbeat every 120 frames.
-				if ((m_photodiode_diag_frame % 120) == 1)
-					Console.WriteLn("(DIAG:Photodiode) PATH3: frame=%u ring[%u] px=0x%08X lum=%u dark=%s valid=%u null=%u thresh=%u/%u",
-						m_photodiode_diag_frame, read_idx, px, lum,
-						set_dark ? "YES" : "NO",
-						m_photodiode_valid_count, m_photodiode_null_count,
-						entry_thresh, exit_thresh);
-
 				g_guncon2_display_dark.store(set_dark, std::memory_order_relaxed);
 				m_photodiode_ring[read_idx]->Unmap();
 			}
@@ -168,14 +149,7 @@ void GSRenderer::UpdatePhotodiode()
 	{
 		// GetCurrent() returned null on a frame where Merge() ran.
 		// This can happen during PCRTC mode switches. Dark flag is unchanged.
-		m_photodiode_null_count++;
-		if ((m_photodiode_null_count % 30) == 1)
-		{
-			const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
-			Console.WriteLn("(DIAG:Photodiode) PATH3-NULL: GetCurrent()=null frame=%u dark=%s (null=%u valid=%u)",
-				m_photodiode_diag_frame, dark ? "TRUE" : "FALSE",
-				m_photodiode_null_count, m_photodiode_valid_count);
-		}
+		// GetCurrent() returned null — dark flag unchanged.
 	}
 }
 
@@ -200,10 +174,7 @@ bool GSRenderer::Merge(int field)
 		if (gun_active)
 		{
 			if (!g_guncon2_display_dark.load(std::memory_order_relaxed))
-			{
-				Console.WriteLn("(DIAG:Photodiode) PATH1: PCRTC disabled -> DARK=TRUE");
 				ResetPhotodiode();
-			}
 			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
 		}
 		m_real_size = GSVector2i(0, 0);
@@ -253,17 +224,8 @@ bool GSRenderer::Merge(int field)
 		if (gun_active)
 		{
 			if (!g_guncon2_display_dark.load(std::memory_order_relaxed))
-			{
-				Console.WriteLn("(DIAG:Photodiode) PATH2: GetOutput null -> DARK=TRUE — PCRTC[0].en=%d PCRTC[1].en=%d",
-					PCRTCDisplays.PCRTCDisplays[0].enabled, PCRTCDisplays.PCRTCDisplays[1].enabled);
 				ResetPhotodiode();
-			}
 			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
-			m_photodiode_path2_count++;
-			if ((m_photodiode_path2_count % 30) == 1)
-				Console.WriteLn("(DIAG:Photodiode) PATH2: GetOutput null (count=%u) — PCRTC[0].en=%d PCRTC[1].en=%d",
-					m_photodiode_path2_count,
-					PCRTCDisplays.PCRTCDisplays[0].enabled, PCRTCDisplays.PCRTCDisplays[1].enabled);
 		}
 
 		// Clear out the MAD buffer as some remnants of the previously shown frame came be left over, causing a flash for one frame.

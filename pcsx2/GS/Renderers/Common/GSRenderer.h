@@ -55,10 +55,6 @@ private:
 	u32 m_photodiode_frame = 0;
 
 	// Diagnostic counters — reset on renderer recreation (game change).
-	u32 m_photodiode_diag_frame = 0;
-	u32 m_photodiode_valid_count = 0;
-	u32 m_photodiode_null_count = 0;
-	u32 m_photodiode_path2_count = 0;
 
 	void UpdatePhotodiode();
 	void ResetPhotodiode();
