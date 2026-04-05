@@ -445,14 +445,17 @@ namespace usb_lightgun
 							// Snap: persist stored position for ALL polls of the snap frame.
 							// Without this, the SDK reads the live mouse on later polls
 							// of the same frame (last-write-wins at V-blank).
-							if (us->snap_frame != UINT32_MAX && g_FrameCount == us->snap_frame)
+							if (us->snap_frame != UINT32_MAX)
 							{
-								out.pos_x = us->calibration_pos_x;
-								out.pos_y = us->calibration_pos_y;
-							}
-							else if (us->snap_frame != UINT32_MAX)
-							{
-								us->snap_frame = UINT32_MAX; // next frame: back to live mouse
+								if (g_FrameCount == us->snap_frame)
+								{
+									out.pos_x = us->calibration_pos_x;
+									out.pos_y = us->calibration_pos_y;
+								}
+								else
+								{
+									us->snap_frame = UINT32_MAX; // next frame: back to live mouse
+								}
 							}
 
 							if (us->calibration_active)
@@ -540,8 +543,7 @@ namespace usb_lightgun
 						if (done_pressed)
 						{
 							us->calibration_locked = true;
-							if (us->calibration_active)
-								us->calibration_active = false;
+							us->calibration_active = false;
 							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [button] (param: %d,%d)",
 								us->port, us->param_x, us->param_y);
 						}
@@ -594,14 +596,14 @@ namespace usb_lightgun
 			if (serial != gc.serial)
 				continue;
 
-			Console.WriteLn(fmt::format("(GunCon2) Found game config for '{}'", serial));
+			Console.WriteLn("(GunCon2) Found game config for '%s'", serial.c_str());
 
 			// Position values: only apply if NOT using custom manual config.
 			if (!custom_config)
 			{
-				Console.WriteLn(fmt::format("  Scale: {}x{}", gc.scale_x / 100.0f, gc.scale_y / 100.0f));
-				Console.WriteLn(fmt::format("  Center Position: {}x{}", gc.center_x, gc.center_y));
-				Console.WriteLn(fmt::format("  Screen Size: {}x{}", gc.screen_width, gc.screen_height));
+				Console.WriteLn("  Scale: %.4fx%.4f", gc.scale_x / 100.0f, gc.scale_y / 100.0f);
+				Console.WriteLn("  Center Position: %ux%u", gc.center_x, gc.center_y);
+				Console.WriteLn("  Screen Size: %ux%u", gc.screen_width, gc.screen_height);
 
 				scale_x = gc.scale_x / 100.0f;
 				scale_y = gc.scale_y / 100.0f;
@@ -618,7 +620,7 @@ namespace usb_lightgun
 			// Per-game photodiode dark threshold (0 = use defaults in GSRenderer).
 			g_guncon2_dark_threshold.store(gc.dark_threshold, std::memory_order_relaxed);
 			if (gc.dark_threshold)
-				Console.WriteLn(fmt::format("(GunCon2) Custom dark threshold: entry={}, exit={}", gc.dark_threshold, gc.dark_threshold * 2));
+				Console.WriteLn("(GunCon2) Custom dark threshold: entry=%u, exit=%u", gc.dark_threshold, gc.dark_threshold * 2);
 
 			// No-photodiode games: disable ring buffer dark permanently.
 			// Lock at boot ONLY for GF2 (CalibDoneBtn::None): no calibration flow needed.
@@ -629,11 +631,11 @@ namespace usb_lightgun
 				if (gc.calib_done_btn == CalibDoneBtn::None)
 				{
 					calibration_locked = true;
-					Console.WriteLn(fmt::format("(GunCon2) Port {}: photodiode DISABLED + locked at boot", port));
+					Console.WriteLn("(GunCon2) Port %u: photodiode DISABLED + locked at boot", port);
 				}
 				else
 				{
-					Console.WriteLn(fmt::format("(GunCon2) Port {}: photodiode DISABLED — calibration flow active", port));
+					Console.WriteLn("(GunCon2) Port %u: photodiode DISABLED — calibration flow active", port);
 				}
 			}
 
@@ -642,7 +644,7 @@ namespace usb_lightgun
 			if (gc.calib_done_btn != CalibDoneBtn::None)
 			{
 				static const char* btn_names[] = {"None", "A/B", "Start", "Offscreen", "Auto"};
-				Console.WriteLn(fmt::format("(GunCon2) Port {}: calibration done button = {}", port, btn_names[static_cast<u8>(gc.calib_done_btn)]));
+				Console.WriteLn("(GunCon2) Port %u: calibration done button = %s", port, btn_names[static_cast<u8>(gc.calib_done_btn)]);
 			}
 
 			// Per-game dark injection timing. Always set from GameConfig to
@@ -653,18 +655,18 @@ namespace usb_lightgun
 
 			if (gc.dark_delay > 0 || gc.dark_duration > 0)
 			{
-				Console.WriteLn(fmt::format("(GunCon2) Port {}: dark inject enabled (delay={} dur={} frames, fire_once={})",
-					port, dark_delay, dark_duration, fire_once ? "YES" : "NO"));
+				Console.WriteLn("(GunCon2) Port %u: dark inject enabled (delay=%u dur=%u frames, fire_once=%s)",
+					port, dark_delay, dark_duration, fire_once ? "YES" : "NO");
 			}
 			else
 			{
-				Console.WriteLn(fmt::format("(GunCon2) Port {}: dark inject disabled (vanilla photodiode)", port));
+				Console.WriteLn("(GunCon2) Port %u: dark inject disabled (vanilla photodiode)", port);
 			}
 
 			return;
 		}
 
-		Console.Warning(fmt::format("(GunCon2) No game config found for '{}'.", serial));
+		Console.Warning("(GunCon2) No game config found for '%s'.", serial.c_str());
 		g_guncon2_dark_threshold.store(0, std::memory_order_relaxed);
 	}
 
@@ -999,7 +1001,6 @@ namespace usb_lightgun
 		sw.Do(&s->calibration_pos_x);
 		sw.Do(&s->calibration_pos_y);
 		sw.Do(&s->auto_config_done);
-
 		float scale_x = s->scale_x;
 		float scale_y = s->scale_y;
 		float center_x = s->center_x;
@@ -1013,8 +1014,9 @@ namespace usb_lightgun
 		sw.Do(&screen_width);
 		sw.Do(&screen_height);
 
-		// On read: reset auto_config_done so AutoConfigure() re-runs at next control packet.
-		// This ensures dark_delay, fire_once, calib_done_btn etc. are re-applied from GameConfig.
+		// Serialized for binary layout compatibility only.
+		// Immediately reset on read to force AutoConfigure() to re-run at the next control
+		// packet, re-applying dark_delay, fire_once, calib_done_btn from GameConfig.
 		if (sw.IsReading())
 			s->auto_config_done = false;
 
