@@ -61,7 +61,6 @@ private:
 		std::string display_name;
 		u32 pointer_index = 0;
 		u32 button_state = 0;
-		bool seen_absolute = false; // true once we receive an ABS event from this device
 	};
 
 	/// Enumerate all HID mice via GetRawInputDeviceList.

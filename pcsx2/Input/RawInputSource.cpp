@@ -249,7 +249,6 @@ bool RawInputSource::ReloadDevices()
 		dev.display_name = std::move(display_name);
 		dev.pointer_index = assigned_slot;
 		dev.button_state = 0;
-		dev.seen_absolute = false;
 
 		Console.WriteLn("(RawInput) New device: pointer %u (%s).", dev.pointer_index, dev.display_name.c_str());
 		InputManager::OnInputDeviceConnected(GetDeviceIdentifier(dev.pointer_index), dev.display_name);
@@ -447,7 +446,6 @@ bool RawInputSource::EnumerateRawMice()
 		dev.display_name = std::move(display_name);
 		dev.pointer_index = 0; // assigned later by AssignPointerIndices
 		dev.button_state = 0;
-		dev.seen_absolute = false;
 
 		m_mice.push_back(std::move(dev));
 	}
@@ -613,7 +611,6 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 	// Position — absolute devices only (lightguns).
 	if (rm.usFlags & MOUSE_MOVE_ABSOLUTE)
 	{
-		mouse.seen_absolute = true;
 
 		const bool is_virtual_desktop = (rm.usFlags & MOUSE_VIRTUAL_DESKTOP) != 0;
 		const int screen_w = GetSystemMetrics(is_virtual_desktop ? SM_CXVIRTUALSCREEN : SM_CXSCREEN);

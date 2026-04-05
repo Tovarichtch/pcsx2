@@ -223,7 +223,7 @@ namespace usb_lightgun
 		// for duration frames. Uses g_FrameCount — aligned to game V-blank.
 		bool calibration_active = false;   // true = currently in calibration sequence
 		u32 calibration_start_frame = 0;   // g_FrameCount at trigger press
-		u32 snap_frame = 0;                // Frame where snap position persists (0 = inactive)
+		u32 snap_frame = UINT32_MAX;       // Frame where snap position persists (UINT32_MAX = inactive)
 
 		bool auto_config_done = false;
 
@@ -398,7 +398,7 @@ namespace usb_lightgun
 						us->has_triggered = false;
 						us->calibration_active = false;
 						us->dark_inject_fired = false;
-						us->snap_frame = 0;
+						us->snap_frame = UINT32_MAX;
 						us->pending_poll_count = 0;
 						Console.WriteLn("(GunCon2) Port %u: recalibrate — calibration reset", us->port);
 					}
@@ -447,14 +447,14 @@ namespace usb_lightgun
 							// Snap: persist stored position for ALL polls of the snap frame.
 							// Without this, the SDK reads the live mouse on later polls
 							// of the same frame (last-write-wins at V-blank).
-							if (us->snap_frame != 0 && g_FrameCount == us->snap_frame)
+							if (us->snap_frame != UINT32_MAX && g_FrameCount == us->snap_frame)
 							{
 								out.pos_x = us->calibration_pos_x;
 								out.pos_y = us->calibration_pos_y;
 							}
-							else if (us->snap_frame != 0)
+							else if (us->snap_frame != UINT32_MAX)
 							{
-								us->snap_frame = 0; // next frame: back to live mouse
+								us->snap_frame = UINT32_MAX; // next frame: back to live mouse
 							}
 
 							if (us->calibration_active)
@@ -722,6 +722,9 @@ namespace usb_lightgun
 
 	std::pair<float, float> GunCon2State::GetAbsolutePositionFromRelativeAxes() const
 	{
+		// Relative mode is used with joysticks or gamepad-mode lightguns — not RawInput.
+		// In this mode all GunCon2 instances share the same relative_pos[] state,
+		// so pointer_index is intentionally not used here.
 		const float screen_rel_x = (((relative_pos[1] > 0.0f) ? relative_pos[1] : -relative_pos[0]) + 1.0f) * 0.5f;
 		const float screen_rel_y = (((relative_pos[3] > 0.0f) ? relative_pos[3] : -relative_pos[2]) + 1.0f) * 0.5f;
 		return std::make_pair(
