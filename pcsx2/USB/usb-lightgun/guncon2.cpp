@@ -644,7 +644,7 @@ namespace usb_lightgun
 			if (gc.calib_done_btn != CalibDoneBtn::None)
 			{
 				static const char* btn_names[] = {"None", "A/B", "Start", "Offscreen", "Auto"};
-				Console.WriteLn(fmt::format("(GunCon2) Port {}: calibration done button = {}", port, btn_names[gc.calib_done_btn]));
+				Console.WriteLn(fmt::format("(GunCon2) Port {}: calibration done button = {}", port, btn_names[static_cast<u8>(gc.calib_done_btn)]));
 			}
 
 			// Per-game dark injection timing. Always set from GameConfig to
