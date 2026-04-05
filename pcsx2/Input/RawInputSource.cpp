@@ -205,7 +205,7 @@ bool RawInputSource::ReloadDevices()
 		for (const auto& m : m_mice)
 			if (m.pointer_index < InputManager::MAX_POINTER_DEVICES)
 				taken_mask |= (1u << m.pointer_index);
-		const u32 free_slot = static_cast<u32>(__builtin_ctz(~taken_mask));
+		const u32 free_slot = static_cast<u32>(std::countr_zero(~taken_mask));
 		if (free_slot >= InputManager::MAX_POINTER_DEVICES)
 			break;
 
