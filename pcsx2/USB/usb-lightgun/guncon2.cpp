@@ -676,7 +676,7 @@ namespace usb_lightgun
 		GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
 
 		s16 pos_x, pos_y;
-		if (pointer_x < 0.02f || pointer_y < 0.02f || pointer_x > 0.98f || pointer_y > 0.98f)
+		if (pointer_x < 0.015f || pointer_y < 0.015f || pointer_x > 0.985f || pointer_y > 0.985f)
 		{
 			// off-screen: outside draw rect (-1.0) or within 2% border of game display edge
 			pos_x = 0;
