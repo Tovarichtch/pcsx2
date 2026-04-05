@@ -202,7 +202,6 @@ namespace usb_lightgun
 		// calib_responded: set when SET_PARAM received while has_triggered=true.
 		// Lock condition: has_triggered && calib_responded && done_button pressed.
 		bool calibration_locked = false;
-		bool photodiode_disabled = false; // Permanent lock for no_photodiode games — never unlocks.
 		CalibDoneBtn calib_done_btn = CalibDoneBtn::None;
 		bool has_triggered = false;    // Player has pressed trigger at least once.
 		bool calib_responded = false;  // Game sent SET_PARAM after has_triggered.
@@ -351,7 +350,6 @@ namespace usb_lightgun
 					}
 				}
 			}
-			// photodiode_disabled (GF2): already locked at boot, ignore all SET_PARAMs.
 
 			return;
 		}
@@ -628,7 +626,6 @@ namespace usb_lightgun
 			// flow: trigger → game responds → player presses button → lock.
 			if (gc.no_photodiode)
 			{
-				photodiode_disabled = true;
 				if (gc.calib_done_btn == CalibDoneBtn::None)
 				{
 					calibration_locked = true;
