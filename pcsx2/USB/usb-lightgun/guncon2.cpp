@@ -207,6 +207,7 @@ namespace usb_lightgun
 		CalibDoneBtn calib_done_btn = CALIB_BTN_NONE;
 		bool has_triggered = false;    // Player has pressed trigger at least once.
 		bool calib_responded = false;  // Game sent SET_PARAM after has_triggered.
+		u32 pending_poll_count = 0;    // Polls since last SET_PARAM (CALIB_BTN_AUTO only — VC).
 
 		// Trigger-delayed dark injection: replaces photodiode for games with configured dark_delay.
 		// Real GunCon2 on CRT: photodiode detects dark within the same vsync.
@@ -328,10 +329,16 @@ namespace usb_lightgun
 			// Calibration lock logic in SET_PARAM:
 			// - Button-based (calib_done_btn != NONE/AUTO): mark calib_responded.
 			//   Lock happens in poll handler when the done button is pressed.
-			// - CALIB_BTN_AUTO (VC): lock happens in poll handler after snap_frame clears.
-			//   SET_PARAM is not used for locking — just update params normally.
+			// - CALIB_BTN_AUTO (VC): reset settle counter on every SET_PARAM.
+			//   Lock happens after 750 polls (~6s) of SET_PARAM silence.
 			// - no_photodiode (GF2): already locked at boot, ignore all SET_PARAMs.
-			if (us->calib_done_btn != CALIB_BTN_NONE && us->calib_done_btn != CALIB_BTN_AUTO)
+			if (us->calib_done_btn == CALIB_BTN_AUTO)
+			{
+				// Any SET_PARAM resets the settle counter — player is still calibrating.
+				if (us->has_triggered && !us->calibration_locked)
+					us->pending_poll_count = 0;
+			}
+			else if (us->calib_done_btn != CALIB_BTN_NONE)
 			{
 				// Button-based games: mark that the game responded to calibration.
 				if (us->has_triggered && !us->calibration_locked)
@@ -394,6 +401,7 @@ namespace usb_lightgun
 						us->calibration_active = false;
 						us->dark_inject_fired = false;
 						us->snap_frame = 0;
+						us->pending_poll_count = 0;
 						Console.WriteLn("(GunCon2) Port %u: recalibrate — calibration reset", us->port);
 					}
 
@@ -447,14 +455,6 @@ namespace usb_lightgun
 							else if (us->snap_frame != 0)
 							{
 								us->snap_frame = 0; // next frame: back to live mouse
-								// CALIB_BTN_AUTO: lock here — full sequence (delay+dark+snap) complete.
-								// Game has received all calibration data. Lock now, no button needed.
-								if (us->calib_done_btn == CALIB_BTN_AUTO && !us->calibration_locked)
-								{
-									us->calibration_locked = true;
-									Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto, post-snap]",
-										us->port);
-								}
 							}
 
 							if (us->calibration_active)
@@ -499,6 +499,19 @@ namespace usb_lightgun
 						{
 							out.pos_x = 0;
 							out.pos_y = 0;
+						}
+					}
+
+					// CALIB_BTN_AUTO settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
+					// Counter resets on every SET_PARAM. Counts from first trigger press.
+					if (us->calib_done_btn == CALIB_BTN_AUTO &&
+						us->has_triggered && !us->calibration_locked)
+					{
+						if (++us->pending_poll_count >= 750)
+						{
+							us->calibration_locked = true;
+							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto, %u polls]",
+								us->port, us->pending_poll_count);
 						}
 					}
 
