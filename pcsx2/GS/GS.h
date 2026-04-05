@@ -7,7 +7,6 @@
 #include "SaveState.h"
 #include "pcsx2/Config.h"
 
-#include <atomic>
 #include <map>
 #include <optional>
 #include <string>
@@ -133,7 +132,5 @@ namespace Host
 	void OnCaptureStarted(const std::string& filename);
 	void OnCaptureStopped();
 }
-
-// GunCon2 photodiode state: true when GS merged output is black (calibration).
 
 extern Pcsx2Config::GSOptions GSConfig;
