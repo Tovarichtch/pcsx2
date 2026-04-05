@@ -60,6 +60,7 @@ namespace usb_lightgun
 		CALIB_BTN_AB    = 1, // A or B on GunCon2 (Namco, DCOX, GC2)
 		CALIB_BTN_START = 2, // START on GunCon2 (Capcom DS, GS, REDA)
 		CALIB_BTN_OFF   = 3, // Offscreen shot
+		CALIB_BTN_AUTO  = 4, // Auto-lock on first SET_PARAM after trigger (VC — no button needed)
 	};
 
 	// Right pain in the arse. Different games seem to have different scales..
@@ -127,8 +128,8 @@ namespace usb_lightgun
 		{"SCES-50411",  89.75f, 115.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Vampire Night (E) PAL Namco
 		{"SLPS-25077",  89.75f, 105.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Vampire Night (J) NTSC Namco
 		{"SLUS-20221",  89.75f, 105.0f,  422, 134, 640, 224, 0, false, CALIB_BTN_AB,     3, 1, true},  // Vampire Night (U) NTSC Namco
-		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, 0, false, CALIB_BTN_OFF,       3,     3, true},  // Virtua Cop Elite Edition (E) PAL Sega (3f delay + 3f dark)
-		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, 0, false, CALIB_BTN_OFF,       4,     3, true},  // Virtua Cop Re-Birth (J) NTSC Sega (4f delay + 3f dark)
+		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, 0, false, CALIB_BTN_AUTO,      3,     3, true},  // Virtua Cop Elite Edition (E) PAL Sega (3f delay + 3f dark)
+		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, 0, false, CALIB_BTN_AUTO,      4,     3, true},  // Virtua Cop Re-Birth (J) NTSC Sega (4f delay + 3f dark)
 	};
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
@@ -325,10 +326,23 @@ namespace usb_lightgun
 				old_mode, old_px, old_py);
 
 			// Calibration lock logic in SET_PARAM:
-			// - Button-based (calib_done_btn != NONE): mark calib_responded.
+			// - CALIB_BTN_AUTO (VC): lock immediately on first SET_PARAM after trigger.
+			//   No button press needed — game confirms calibration via SET_PARAM itself.
+			// - Button-based (calib_done_btn != NONE/AUTO): mark calib_responded.
 			//   Lock happens in poll handler when the done button is pressed.
 			// - no_photodiode (GF2): already locked at boot, ignore all SET_PARAMs.
-			if (us->calib_done_btn != CALIB_BTN_NONE)
+			if (us->calib_done_btn == CALIB_BTN_AUTO)
+			{
+				if (us->has_triggered && !us->calibration_locked)
+				{
+					us->calibration_locked = true;
+					if (us->calibration_active)
+						us->calibration_active = false;
+					Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto] (param: %d,%d)",
+						us->port, us->param_x, us->param_y);
+				}
+			}
+			else if (us->calib_done_btn != CALIB_BTN_NONE)
 			{
 				// Button-based games: mark that the game responded to calibration.
 				if (us->has_triggered && !us->calibration_locked)
@@ -495,7 +509,8 @@ namespace usb_lightgun
 					// has_triggered: player has fired at least once.
 					// calib_responded: game sent SET_PARAM after trigger (calibration happened).
 					// Both conditions prevent premature lock (boot buttons, logo skips).
-					if (us->calib_done_btn != CALIB_BTN_NONE &&
+					// CALIB_BTN_AUTO is handled in SET_PARAM handler — skip here.
+					if (us->calib_done_btn != CALIB_BTN_NONE && us->calib_done_btn != CALIB_BTN_AUTO &&
 						us->has_triggered && us->calib_responded && !us->calibration_locked)
 					{
 						bool done_pressed = false;
