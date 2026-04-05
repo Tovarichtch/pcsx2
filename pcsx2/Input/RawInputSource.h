@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #pragma once
+#include <mutex>
 
 #ifdef _WIN32
 
@@ -79,6 +80,7 @@ private:
 	HWND m_hwnd = nullptr;
 	bool m_initialized = false;
 	std::vector<RawMouseDevice> m_mice;
+	mutable std::mutex m_mice_mutex; // Protects m_mice and m_handle_to_mouse_index
 	std::unordered_map<HANDLE, u32> m_handle_to_mouse_index;
 
 	static constexpr const char* s_button_names[] = {"LeftButton", "RightButton", "MiddleButton"};

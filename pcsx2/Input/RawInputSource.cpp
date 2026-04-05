@@ -127,6 +127,7 @@ bool RawInputSource::ReloadDevices()
 {
 	// Re-enumerate raw mice. Match new HANDLEs to existing device_paths
 	// so that pointer_index stays stable mid-session.
+	std::lock_guard<std::mutex> guard(m_mice_mutex);
 
 	UINT device_count = 0;
 	if (GetRawInputDeviceList(nullptr, &device_count, sizeof(RAWINPUTDEVICELIST)) == static_cast<UINT>(-1))
@@ -262,6 +263,7 @@ bool RawInputSource::ReloadDevices()
 
 void RawInputSource::Shutdown()
 {
+	std::lock_guard<std::mutex> guard(m_mice_mutex);
 	for (const auto& mouse : m_mice)
 	{
 		const InputBindingKey key = MakeGenericControllerButtonKey(InputSourceType::RawInput, mouse.pointer_index, 0);
@@ -392,6 +394,7 @@ TinyString RawInputSource::ConvertKeyToIcon(InputBindingKey key)
 
 bool RawInputSource::EnumerateRawMice()
 {
+	std::lock_guard<std::mutex> guard(m_mice_mutex);
 	UINT device_count = 0;
 	if (GetRawInputDeviceList(nullptr, &device_count, sizeof(RAWINPUTDEVICELIST)) == static_cast<UINT>(-1))
 	{
@@ -566,6 +569,7 @@ void RawInputSource::RebuildHandleMap()
 
 std::optional<u32> RawInputSource::GetPointerIndexForDevicePath(const std::string_view device_path) const
 {
+	std::lock_guard<std::mutex> guard(m_mice_mutex);
 	for (const auto& mouse : m_mice)
 	{
 		if (mouse.device_path == device_path)
@@ -576,6 +580,7 @@ std::optional<u32> RawInputSource::GetPointerIndexForDevicePath(const std::strin
 
 std::vector<std::pair<std::string, std::string>> RawInputSource::GetRawMouseDeviceList() const
 {
+	std::lock_guard<std::mutex> guard(m_mice_mutex);
 	std::vector<std::pair<std::string, std::string>> result;
 	for (const auto& mouse : m_mice)
 	{
@@ -596,6 +601,7 @@ void RawInputSource::ProcessRawInput(const RAWINPUT* raw, HWND render_hwnd)
 	if (!m_initialized || raw->header.dwType != RIM_TYPEMOUSE)
 		return;
 
+	std::lock_guard<std::mutex> guard(m_mice_mutex);
 	const auto it = m_handle_to_mouse_index.find(raw->header.hDevice);
 	if (it == m_handle_to_mouse_index.end())
 		return;

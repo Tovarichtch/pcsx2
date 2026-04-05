@@ -7,7 +7,6 @@
 #include "IconsPromptFont.h"
 #include "ImGui/ImGuiManager.h"
 #include "Input/InputManager.h"
-#include "Memory.h"
 #include "StateWrapper.h"
 #include "USB/USB.h"
 #include "USB/deviceproxy.h"
@@ -321,8 +320,9 @@ namespace usb_lightgun
 			us->param_x = static_cast<u16>(data[0]) | (static_cast<u16>(data[1]) << 8);
 			us->param_y = static_cast<u16>(data[2]) | (static_cast<u16>(data[3]) << 8);
 			us->param_mode = static_cast<u16>(data[4]) | (static_cast<u16>(data[5]) << 8);
-			// Log SET_PARAM — game writing calibration offsets.
-			Console.WriteLn("(GunCon2) Port %u SET_PARAM mode=0x%04X param_x=%d param_y=%d (was mode=0x%04X x=%d y=%d)",
+			// Log SET_PARAM during calibration only — skip after lock to avoid log spam.
+			if (!us->calibration_locked)
+				Console.WriteLn("(GunCon2) Port %u SET_PARAM mode=0x%04X param_x=%d param_y=%d (was mode=0x%04X x=%d y=%d)",
 				us->port, us->param_mode, us->param_x, us->param_y,
 				old_mode, old_px, old_py);
 
