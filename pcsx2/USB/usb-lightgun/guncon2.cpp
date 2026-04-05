@@ -988,13 +988,7 @@ namespace usb_lightgun
 			{SettingInfo::Type::Integer, "screen_height", TRANSLATE_NOOP("USB", "Screen Height"),
 				TRANSLATE_NOOP("USB", "Sets the height of the simulated screen."), "240", "1", "1024", "1", TRANSLATE_NOOP("USB", "%dpx"),
 				nullptr, nullptr, 1.0f},
-			{SettingInfo::Type::Integer, "dark_delay", TRANSLATE_NOOP("USB", "Dark Inject Delay"),
-				TRANSLATE_NOOP("USB", "Polls to wait after trigger before injecting dark. -1 = Auto (use game default)."), "-1", "-1", "30", "1", TRANSLATE_NOOP("USB", "%d polls"),
-				nullptr, nullptr, 1.0f},
-			{SettingInfo::Type::Integer, "dark_duration", TRANSLATE_NOOP("USB", "Dark Inject Duration"),
-				TRANSLATE_NOOP("USB", "Polls to hold dark after delay. -1 = Auto (use game default)."), "-1", "-1", "15", "1", TRANSLATE_NOOP("USB", "%d polls"),
-				nullptr, nullptr, 1.0f},
-		};
+			};
 		return info;
 	}
 

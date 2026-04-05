@@ -81,7 +81,7 @@
       <item row="0" column="0" colspan="2">
        <widget class="QLabel" name="label_rawinput">
         <property name="text">
-         <string>The Raw Input source enables per-device mouse tracking for lightguns. When enabled, each USB lightgun is tracked independently, allowing two-player lightgun games with separate aiming.</string>
+         <string>The Raw Input source enables per-device tracking for absolute positioning devices (e.g.: light guns). When enabled, each device is tracked independently, allowing multi-player support with separate input per port.</string>
         </property>
         <property name="wordWrap">
          <bool>true</bool>
