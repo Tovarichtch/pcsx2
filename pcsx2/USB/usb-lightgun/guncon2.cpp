@@ -28,9 +28,6 @@ namespace usb_lightgun
 	enum : u32
 	{
 		GUNCON2_FLAG_PROGRESSIVE = 0x0100,
-
-		GUNCON2_CALIBRATION_DELAY = 12,
-		GUNCON2_CALIBRATION_REPORT_DELAY = 5,
 	};
 
 	enum : u32
@@ -83,7 +80,7 @@ namespace usb_lightgun
 	static constexpr const GameConfig s_game_config[] = {
 		// ELF-based calibration: cx/cy from addiu opcodes, W/H from slti thresholds.
 		// screen_height = ELF height / 2 (interlaced half-field).
-		// scale_x/scale_y calibrated empirically per game by Réda (Tovarichtch).
+		// scale_x/scale_y calibrated empirically per game.
 		// dark_delay/dark_duration: V-sync frames. fire_once=true → calibration dark inject. fire_once=false → vanilla photodiode.
 		// fire_once: true = calibration only, false = every shot (Sega VC).
 		// calib_done_btn: AB/START/OFF/NONE — button that confirms calibration is done.
@@ -131,6 +128,9 @@ namespace usb_lightgun
 		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, 0, false, CALIB_BTN_AUTO,      3,     3, true},  // Virtua Cop Elite Edition (E) PAL Sega (3f delay + 3f dark)
 		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, 0, false, CALIB_BTN_AUTO,      4,     3, true},  // Virtua Cop Re-Birth (J) NTSC Sega (4f delay + 3f dark)
 	};
+
+	static constexpr u32 GUNCON2_VC_SETTLE_POLLS = 750; // ~6s at ~125Hz USB — SET_PARAM silence = calibration done
+	static constexpr float GUNCON2_OFFSCREEN_BORDER = 0.015f; // 1.5% edge = offscreen
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
 	static constexpr s32 DEFAULT_SCREEN_HEIGHT = 240;
@@ -377,7 +377,6 @@ namespace usb_lightgun
 					// from the first non-zero position after the blank.
 					// We detect darkness via GPU pixel sampling in Merge().
 
-					// Buttons are active low.
 					// Buttons are active low. Bit 8 (GUNCON2_FLAG_PROGRESSIVE) is left
 					// at its natural ~button_state value (always 1, since no BID maps to
 					// bit 8). This matches PCSX2 vanilla behavior and allows the game's
@@ -507,7 +506,7 @@ namespace usb_lightgun
 					if (us->calib_done_btn == CALIB_BTN_AUTO &&
 						us->has_triggered && !us->calibration_locked)
 					{
-						if (++us->pending_poll_count >= 750)
+						if (++us->pending_poll_count >= GUNCON2_VC_SETTLE_POLLS)
 						{
 							us->calibration_locked = true;
 							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto, %u polls]",
@@ -582,7 +581,8 @@ namespace usb_lightgun
 
 	GunCon2State::~GunCon2State()
 	{
-		g_guncon2_count.fetch_sub(1, std::memory_order_relaxed);
+		if (g_guncon2_count.fetch_sub(1, std::memory_order_relaxed) == 1)
+			g_guncon2_display_dark.store(false, std::memory_order_relaxed);
 	}
 
 	void GunCon2State::AutoConfigure()
@@ -676,7 +676,8 @@ namespace usb_lightgun
 		GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
 
 		s16 pos_x, pos_y;
-		if (pointer_x < 0.015f || pointer_y < 0.015f || pointer_x > 0.985f || pointer_y > 0.985f)
+		if (pointer_x < GUNCON2_OFFSCREEN_BORDER || pointer_y < GUNCON2_OFFSCREEN_BORDER ||
+						pointer_x > (1.0f - GUNCON2_OFFSCREEN_BORDER) || pointer_y > (1.0f - GUNCON2_OFFSCREEN_BORDER))
 		{
 			// off-screen: outside draw rect (-1.0) or within 2% border of game display edge
 			pos_x = 0;
@@ -789,19 +790,6 @@ namespace usb_lightgun
 
 		s->custom_config = USB::GetConfigBool(si, s->port, TypeName(), "custom_config", false);
 
-		// GUI override for dark inject timing (-1 = Auto, use GameConfig. 0+ = direct value).
-		const s32 gui_delay = USB::GetConfigInt(si, s->port, TypeName(), "dark_delay", -1);
-		const s32 gui_duration = USB::GetConfigInt(si, s->port, TypeName(), "dark_duration", -1);
-		if (gui_delay >= 0 || gui_duration >= 0)
-		{
-			if (gui_delay >= 0)
-				s->dark_delay = static_cast<u32>(gui_delay);
-			if (gui_duration >= 0)
-				s->dark_duration = static_cast<u32>(gui_duration);
-			Console.WriteLn("(GunCon2) Port %u: GUI override dark inject (delay=%u, duration=%u)",
-				s->port, s->dark_delay, s->dark_duration);
-		}
-
 		// Don't override auto config if we've set it.
 		if (!s->auto_config_done || s->custom_config)
 		{
@@ -817,7 +805,7 @@ namespace usb_lightgun
 		const std::string pointer_source = USB::GetConfigString(si, s->port, TypeName(), "pointer_source", "Auto");
 		if (pointer_source == "Auto" || pointer_source.empty())
 		{
-			s->pointer_index = s->port;
+			s->pointer_index = std::min(s->port, InputManager::MAX_POINTER_DEVICES - 1u);
 			const auto devices = InputManager::EnumerateRawPointerDevices();
 			if (s->pointer_index < devices.size())
 				Console.WriteLn("(GunCon2) Port %u: Auto pointer → %s", s->port, devices[s->pointer_index].second.c_str());
@@ -828,7 +816,7 @@ namespace usb_lightgun
 		{
 			// pointer_source is a device path — resolve to pointer index.
 			const std::optional<u32> idx = InputManager::GetPointerIndexForRawDevice(pointer_source);
-			s->pointer_index = idx.value_or(s->port);
+			s->pointer_index = std::min(idx.value_or(s->port), InputManager::MAX_POINTER_DEVICES - 1u);
 			Console.WriteLn("(GunCon2) Port %u: Manual pointer → index %u", s->port, s->pointer_index);
 		}
 
@@ -920,7 +908,7 @@ namespace usb_lightgun
 			{"Trigger", TRANSLATE_NOOP("USB", "Trigger"), nullptr, InputBindingInfo::Type::Button, BID_TRIGGER, GenericInputBinding::R2},
 			{"ShootOffscreen", TRANSLATE_NOOP("USB", "Shoot Offscreen"), nullptr, InputBindingInfo::Type::Button, BID_SHOOT_OFFSCREEN,
 				GenericInputBinding::R1},
-			{"Recalibrate", TRANSLATE_NOOP("USB", "Recalibrate"), nullptr, InputBindingInfo::Type::Button, BID_RECALIBRATE,
+			{"Recalibrate", TRANSLATE_NOOP("USB", "Calibration Shot"), nullptr, InputBindingInfo::Type::Button, BID_RECALIBRATE,
 				GenericInputBinding::Unknown},
 			{"A", TRANSLATE_NOOP("USB", "A"), nullptr, InputBindingInfo::Type::Button, BID_A, GenericInputBinding::Cross},
 			{"B", TRANSLATE_NOOP("USB", "B"), nullptr, InputBindingInfo::Type::Button, BID_B, GenericInputBinding::Circle},
@@ -1019,8 +1007,13 @@ namespace usb_lightgun
 		sw.Do(&screen_width);
 		sw.Do(&screen_height);
 
+		// On read: reset auto_config_done so AutoConfigure() re-runs at next control packet.
+		// This ensures dark_delay, fire_once, calib_done_btn etc. are re-applied from GameConfig.
+		if (sw.IsReading())
+			s->auto_config_done = false;
+
 		// Only save automatic settings to state.
-		if (sw.IsReading() && !s->custom_config && s->auto_config_done)
+		if (sw.IsReading() && !s->custom_config)
 		{
 			s->scale_x = scale_x;
 			s->scale_y = scale_y;

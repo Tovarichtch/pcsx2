@@ -4886,7 +4886,6 @@ SCES-50411:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,001ED720,word,24020002
 SCES-50459:
@@ -5132,7 +5131,6 @@ SCES-50889:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,00103B8C,word,24020002
   gsHWFixes:
@@ -5836,7 +5834,6 @@ SCES-52530:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 1 frame (patches countdown read)
         patch=0,EE,0011FD78,word,24030001
   gsHWFixes:
@@ -7453,7 +7450,6 @@ SCKA-20038:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,00196624,word,24030002
 SCKA-20039:
@@ -10946,7 +10942,6 @@ SCPS-56015:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,001038F0,word,24020002
 SCPS-56016:
@@ -16674,7 +16669,6 @@ SLES-50936:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,00105174,word,24020002
 SLES-50937:
@@ -17584,7 +17578,6 @@ SLES-51289:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 1 frame (patches countdown read)
         patch=0,EE,001D2E5C,word,24020001
   gameFixes:
@@ -18253,7 +18246,6 @@ SLES-51617:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,001F8870,word,24030002
   gsHWFixes:
@@ -18644,7 +18636,6 @@ SLES-51783:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,001F86F0,word,24030002
   gsHWFixes:
@@ -20897,7 +20888,6 @@ SLES-52620:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 1 frame (patches countdown read)
         patch=0,EE,00283BF8,word,24020001
   gsHWFixes:
@@ -31477,7 +31467,6 @@ SLKA-25090:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,001FEBF8,word,24030002
 SLKA-25091:
@@ -38914,7 +38903,6 @@ SLPM-62401:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 1 frame (patches countdown read)
         patch=0,EE,00283354,word,24020001
   gsHWFixes:
@@ -55581,7 +55569,6 @@ SLPS-20218:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,00102C74,word,24020002
 SLPS-20219:
@@ -57575,7 +57562,6 @@ SLPS-25077:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,001EB178,word,24020002
 SLPS-25078:
@@ -64897,7 +64883,6 @@ SLUS-20221:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames (lw $v0,gp → li $v0,2)
         patch=0,EE,001EB1F8,word,24020002
 SLUS-20222:
@@ -65737,7 +65722,6 @@ SLUS-20389:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,0010513C,word,24020002
 SLUS-20390:
@@ -66290,7 +66274,6 @@ SLUS-20492:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,00103864,word,24020002
   gsHWFixes:
@@ -66977,7 +66960,6 @@ SLUS-20619:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames (uses $v1)
         patch=0,EE,001FBEB0,word,24030002
   gsHWFixes:
@@ -68683,7 +68665,6 @@ SLUS-20927:
   patches:
     default:
       content: |-
-        author=Tovarichtch
         // GunCon2: reduce settle timer to 2 frames
         patch=0,EE,00196684,word,24030002
   gsHWFixes:

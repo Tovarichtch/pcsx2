@@ -88,6 +88,9 @@ void GSRenderer::ResetPhotodiode()
 
 void GSRenderer::UpdatePhotodiode()
 {
+	if (!g_gs_device)
+		return;
+
 	GSTexture* current = g_gs_device->GetCurrent();
 
 	if (current)
