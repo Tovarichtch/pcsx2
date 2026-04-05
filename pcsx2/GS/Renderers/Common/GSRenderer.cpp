@@ -4,6 +4,7 @@
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiManager.h"
 #include "GS/Renderers/Common/GSRenderer.h"
+#include "USB/usb-lightgun/guncon2.h"
 #include "GS/GSCapture.h"
 #include "GS/GSDump.h"
 #include "GS/GSGL.h"
@@ -126,20 +127,15 @@ void GSRenderer::UpdatePhotodiode()
 				const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
 				const bool was_dark = g_guncon2_display_dark.load(std::memory_order_acquire);
 
-				// Per-game dark threshold: 0 = use compiled defaults, otherwise entry=threshold, exit=threshold*2.
-				const u32 custom_thresh = g_guncon2_dark_threshold.load(std::memory_order_relaxed);
-				const u32 entry_thresh = custom_thresh ? custom_thresh : PHOTODIODE_DARK_ENTRY;
-				const u32 exit_thresh = custom_thresh ? (custom_thresh * 2) : PHOTODIODE_DARK_EXIT;
-
 				// Hysteresis: two thresholds to prevent oscillation during fades.
-				//   bright->dark : lum <  entry_thresh  (fast entry for calibration blanks)
-				//   dark->bright : lum >  exit_thresh   (hold dark through transition frames)
+				//   bright->dark : lum <  PHOTODIODE_DARK_ENTRY (fast entry for calibration blanks)
+				//   dark->bright : lum >  PHOTODIODE_DARK_EXIT  (hold dark through transition frames)
 				//   between      : hold current state
 				bool set_dark;
 				if (was_dark)
-					set_dark = (lum <= exit_thresh);
+					set_dark = (lum <= PHOTODIODE_DARK_EXIT);
 				else
-					set_dark = (lum < entry_thresh);
+					set_dark = (lum < PHOTODIODE_DARK_ENTRY);
 
 				g_guncon2_display_dark.store(set_dark, std::memory_order_release);
 				m_photodiode_ring[read_idx]->Unmap();

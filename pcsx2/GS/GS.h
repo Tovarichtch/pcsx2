@@ -135,8 +135,5 @@ namespace Host
 }
 
 // GunCon2 photodiode state: true when GS merged output is black (calibration).
-extern std::atomic<bool> g_guncon2_display_dark;
-extern std::atomic<int> g_guncon2_count;
-extern std::atomic<u32> g_guncon2_dark_threshold;
 
 extern Pcsx2Config::GSOptions GSConfig;
