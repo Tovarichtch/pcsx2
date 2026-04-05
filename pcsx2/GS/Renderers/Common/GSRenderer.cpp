@@ -152,7 +152,6 @@ void GSRenderer::UpdatePhotodiode()
 	{
 		// GetCurrent() returned null on a frame where Merge() ran.
 		// This can happen during PCRTC mode switches. Dark flag is unchanged.
-		// GetCurrent() returned null — dark flag unchanged.
 	}
 }
 
