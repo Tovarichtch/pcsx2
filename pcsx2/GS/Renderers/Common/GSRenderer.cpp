@@ -124,7 +124,7 @@ void GSRenderer::UpdatePhotodiode()
 			{
 				const u32 px = *reinterpret_cast<const u32*>(m_photodiode_ring[read_idx]->GetMapPointer());
 				const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
-				const bool was_dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
+				const bool was_dark = g_guncon2_display_dark.load(std::memory_order_acquire);
 
 				// Per-game dark threshold: 0 = use compiled defaults, otherwise entry=threshold, exit=threshold*2.
 				const u32 custom_thresh = g_guncon2_dark_threshold.load(std::memory_order_relaxed);
@@ -141,7 +141,7 @@ void GSRenderer::UpdatePhotodiode()
 				else
 					set_dark = (lum < entry_thresh);
 
-				g_guncon2_display_dark.store(set_dark, std::memory_order_relaxed);
+				g_guncon2_display_dark.store(set_dark, std::memory_order_release);
 				m_photodiode_ring[read_idx]->Unmap();
 			}
 		}
@@ -176,9 +176,9 @@ bool GSRenderer::Merge(int field)
 		// PATH1: PCRTC completely disabled — dark immediately.
 		if (gun_active)
 		{
-			if (!g_guncon2_display_dark.load(std::memory_order_relaxed))
+			if (!g_guncon2_display_dark.load(std::memory_order_acquire))
 				ResetPhotodiode();
-			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
+			g_guncon2_display_dark.store(true, std::memory_order_release);
 		}
 		m_real_size = GSVector2i(0, 0);
 		return false;
@@ -226,9 +226,9 @@ bool GSRenderer::Merge(int field)
 		// When PATH3 resumes, the ring pipeline starts fresh (ResetPhotodiode).
 		if (gun_active)
 		{
-			if (!g_guncon2_display_dark.load(std::memory_order_relaxed))
+			if (!g_guncon2_display_dark.load(std::memory_order_acquire))
 				ResetPhotodiode();
-			g_guncon2_display_dark.store(true, std::memory_order_relaxed);
+			g_guncon2_display_dark.store(true, std::memory_order_release);
 		}
 
 		// Clear out the MAD buffer as some remnants of the previously shown frame came be left over, causing a flash for one frame.

@@ -2428,12 +2428,13 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 			UINT dwSize = 0;
 			GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
 
-			if (dwSize > 0)
+			// Mouse RAWINPUT is ~48 bytes; use a stack buffer to avoid heap alloc at 125Hz.
+			if (dwSize > 0 && dwSize <= 256)
 			{
-				std::vector<BYTE> lpb(dwSize);
-				if (GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, lpb.data(), &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
+				BYTE lpb[256];
+				if (GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
 				{
-					const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(lpb.data());
+					const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(lpb);
 
 					// Dispatch to RawInputSource for per-device tracking.
 					InputSource* raw_source = InputManager::GetInputSourceInterface(InputSourceType::RawInput);
@@ -2441,6 +2442,8 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 					{
 						HWND render_hwnd = m_display_surface ?
 							reinterpret_cast<HWND>(m_display_surface->winId()) : static_cast<HWND>(nullptr);
+						// Downcast is safe: RawInput source type guarantees RawInputSource instance.
+						pxAssertMsg(dynamic_cast<RawInputSource*>(raw_source), "Expected RawInputSource");
 						static_cast<RawInputSource*>(raw_source)->ProcessRawInput(raw, render_hwnd);
 					}
 

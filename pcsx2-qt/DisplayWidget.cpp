@@ -71,6 +71,9 @@ void DisplaySurface::updateRelativeMode(bool enabled)
 {
 #ifdef _WIN32
 	// prefer ClipCursor() over warping movement when we're using raw input
+	// Clip cursor when RawInput is active: prevents the system cursor from leaving the
+	// window while guns are in use. Upstream had this disabled (false) pending a safe
+	// activation path; RawInput multi-gun tracking provides that path.
 	bool clip_cursor = enabled && InputManager::IsUsingRawInput();
 	if (m_relative_mouse_enabled == enabled && m_clip_mouse_enabled == clip_cursor)
 		return;

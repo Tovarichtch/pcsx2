@@ -431,6 +431,9 @@ bool RawInputSource::EnumerateRawMice()
 
 void RawInputSource::AssignPointerIndices()
 {
+	// Called from Initialize(), which is called from UpdateInputSourceState()
+	// → ReloadSources() → always on the CPU thread. Host settings access is safe here.
+
 	if (m_mice.empty())
 		return;
 

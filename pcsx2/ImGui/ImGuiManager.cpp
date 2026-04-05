@@ -1136,11 +1136,11 @@ void ImGuiManager::SetSoftwareCursor(u32 index, std::string image_path, float im
 	pxAssert(index < std::size(s_software_cursors));
 	SoftwareCursor& sc = s_software_cursors[index];
 
-	// Set path, scale, and color on the CPU thread immediately.
-	// This ensures the cursor state is always up-to-date even if the GS thread
-	// lambda is delayed or dropped (e.g. during rapid USB device init).
-	// The draw function checks sc.texture before drawing, so a brief window
-	// where the path is set but the texture is null is harmless.
+	// sc.image_path/scale/color are written on the CPU thread here and read on the
+	// GS thread in UpdateSoftwareCursorTexture(). This is safe: the lambda queued
+	// below via RunOnGSThread() executes after this write, and MTGS's internal
+	// mutex/condvar provides the necessary acquire/release ordering between threads.
+	// There is no race: the GS thread only reads these fields from within the lambda.
 	const bool path_or_scale_changed = (sc.image_path != image_path || sc.scale != image_scale);
 	const bool is_hiding_or_showing = (image_path.empty() != sc.image_path.empty());
 	sc.color = multiply_color | 0xFF000000;

@@ -383,7 +383,6 @@ namespace usb_lightgun
 					// FUNC_A progressive detection to run its normal course at boot.
 					// Photodiode simulation for step 2 brightness is deferred — step 1
 					// calibration (dark_inject timing) handles all shooting calibration.
-					const bool dark = g_guncon2_display_dark.load(std::memory_order_relaxed);
 					GunCon2Out out;
 					out.buttons = static_cast<u16>(~us->button_state);
 					out.pos_x = pos_x;
@@ -496,6 +495,8 @@ namespace usb_lightgun
 						// Standard photodiode for games without dark_inject (NA, TC2, etc).
 						// Before calibration lock: dark → pos=(0,0) for calibration to work.
 						// After calibration lock: dark BLOCKED — prevents false darks.
+						// dark is declared here (not above) since fire_once branch never uses it.
+						const bool dark = g_guncon2_display_dark.load(std::memory_order_acquire);
 						if (dark && !us->calibration_locked)
 						{
 							out.pos_x = 0;
@@ -584,7 +585,7 @@ namespace usb_lightgun
 	GunCon2State::~GunCon2State()
 	{
 		if (g_guncon2_count.fetch_sub(1, std::memory_order_relaxed) == 1)
-			g_guncon2_display_dark.store(false, std::memory_order_relaxed);
+			g_guncon2_display_dark.store(false, std::memory_order_release);
 	}
 
 	void GunCon2State::AutoConfigure()
@@ -804,7 +805,10 @@ namespace usb_lightgun
 		}
 
 		// Pointer settings.
-		const std::string pointer_source = USB::GetConfigString(si, s->port, TypeName(), "pointer_source", "Auto");
+		// "Pointer" was the ini key in older builds — silently migrate to "pointer_source".
+		std::string pointer_source = USB::GetConfigString(si, s->port, TypeName(), "pointer_source", "");
+		if (pointer_source.empty())
+			pointer_source = USB::GetConfigString(si, s->port, TypeName(), "Pointer", "Auto");
 		if (pointer_source == "Auto" || pointer_source.empty())
 		{
 			s->pointer_index = std::min(s->port, InputManager::MAX_POINTER_DEVICES - 1u);
