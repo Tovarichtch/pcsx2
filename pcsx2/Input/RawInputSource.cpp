@@ -109,6 +109,20 @@ static std::string GetDisplayNameForDevice(const std::string& device_path, const
 	return fmt::format("Mouse {}", index);
 }
 
+static std::string ExtractVidPid(const std::string& device_path)
+{
+	// Extract "VID_XXXX&PID_XXXX" from a HID device path for port-independent matching.
+	const size_t vid_pos = device_path.find("VID_");
+	const size_t pid_pos = device_path.find("PID_");
+	if (vid_pos == std::string::npos || pid_pos == std::string::npos)
+		return {};
+	const std::string vid = (vid_pos + 8 <= device_path.size()) ? device_path.substr(vid_pos, 8) : "";
+	const std::string pid = (pid_pos + 8 <= device_path.size()) ? device_path.substr(pid_pos, 8) : "";
+	if (vid.empty() || pid.empty())
+		return {};
+	return vid + "&" + pid; // "VID_XXXX&PID_XXXX"
+}
+
 bool RawInputSource::ReloadDevices()
 {
 	// Re-enumerate raw mice. Match new HANDLEs to existing device_paths
@@ -122,8 +136,8 @@ bool RawInputSource::ReloadDevices()
 	if (GetRawInputDeviceList(device_list.data(), &device_count, sizeof(RAWINPUTDEVICELIST)) == static_cast<UINT>(-1))
 		return false;
 
-	// Build a map of device_path → new HANDLE from the fresh enumeration.
-	std::unordered_map<std::string, HANDLE> new_path_to_handle;
+	// Build a map of VID+PID → new HANDLE+path from the fresh enumeration.
+	std::unordered_map<std::string, std::pair<HANDLE, std::string>> new_vidpid_to_device;
 	for (UINT i = 0; i < device_count; i++)
 	{
 		if (device_list[i].dwType != RIM_TYPEMOUSE)
@@ -143,23 +157,29 @@ bool RawInputSource::ReloadDevices()
 
 		std::string path = StringUtil::WideStringToUTF8String(wpath);
 		if (!path.empty())
-			new_path_to_handle[std::move(path)] = device_list[i].hDevice;
+		{
+			const std::string vidpid = ExtractVidPid(path);
+			if (!vidpid.empty())
+				new_vidpid_to_device[vidpid] = {device_list[i].hDevice, path};
+		}
 	}
 
-	// Update existing mice: refresh HANDLE, detect removed devices.
+	// Update existing mice: match by VID+PID, refresh HANDLE, detect removed devices.
 	bool changed = false;
 	for (auto it = m_mice.begin(); it != m_mice.end();)
 	{
-		auto path_it = new_path_to_handle.find(it->device_path);
-		if (path_it != new_path_to_handle.end())
+		const std::string vidpid = ExtractVidPid(it->device_path);
+		auto vidpid_it = (!vidpid.empty()) ? new_vidpid_to_device.find(vidpid) : new_vidpid_to_device.end();
+		if (vidpid_it != new_vidpid_to_device.end())
 		{
-			// Device still present — update HANDLE if changed.
-			if (it->handle != path_it->second)
+			// Device still present (same VID+PID) — update HANDLE and path.
+			if (it->handle != vidpid_it->second.first)
 			{
-				it->handle = path_it->second;
+				it->handle = vidpid_it->second.first;
+				it->device_path = vidpid_it->second.second;
 				Console.WriteLn("(RawInput) Updated handle for pointer %u (%s).", it->pointer_index, it->display_name.c_str());
 			}
-			new_path_to_handle.erase(path_it); // consumed
+			new_vidpid_to_device.erase(vidpid_it); // consumed
 			++it;
 		}
 		else
@@ -173,9 +193,10 @@ bool RawInputSource::ReloadDevices()
 		}
 	}
 
-	// Any remaining entries in new_path_to_handle are newly connected devices.
-	for (const auto& [path, handle] : new_path_to_handle)
+	// Any remaining entries are newly connected devices.
+	for (const auto& [vidpid, device_info] : new_vidpid_to_device)
 	{
+		const auto& [handle, path] = device_info;
 		if (m_mice.size() >= InputManager::MAX_POINTER_DEVICES)
 			break;
 
@@ -415,7 +436,7 @@ void RawInputSource::AssignPointerIndices()
 	if (m_mice.empty())
 		return;
 
-	// Read stored device_path → pointer_index from ini.
+	// Read stored VID+PID → pointer_index from ini.
 	std::string stored_paths[InputManager::MAX_POINTER_DEVICES];
 	bool has_stored = false;
 
@@ -432,7 +453,7 @@ void RawInputSource::AssignPointerIndices()
 		std::vector<bool> slot_taken(InputManager::MAX_POINTER_DEVICES, false);
 		std::vector<bool> mouse_assigned(m_mice.size(), false);
 
-		// First pass: exact device_path match.
+		// First pass: VID+PID match.
 		for (u32 slot = 0; slot < InputManager::MAX_POINTER_DEVICES; slot++)
 		{
 			if (stored_paths[slot].empty())
@@ -440,12 +461,13 @@ void RawInputSource::AssignPointerIndices()
 
 			for (size_t m = 0; m < m_mice.size(); m++)
 			{
-				if (!mouse_assigned[m] && m_mice[m].device_path == stored_paths[slot])
+				const std::string mouse_vidpid = ExtractVidPid(m_mice[m].device_path);
+				if (!mouse_assigned[m] && !mouse_vidpid.empty() && mouse_vidpid == stored_paths[slot])
 				{
 					m_mice[m].pointer_index = slot;
 					slot_taken[slot] = true;
 					mouse_assigned[m] = true;
-					Console.WriteLn("(RawInput) Matched stored path → pointer %u: %s", slot, m_mice[m].display_name.c_str());
+					Console.WriteLn("(RawInput) Matched stored VID+PID → pointer %u: %s", slot, m_mice[m].display_name.c_str());
 					break;
 				}
 			}
@@ -500,7 +522,9 @@ void RawInputSource::AssignPointerIndices()
 			if (mouse.pointer_index >= InputManager::MAX_POINTER_DEVICES)
 				continue;
 			const std::string key = fmt::format("Pointer{}Device", mouse.pointer_index);
-			Host::SetBaseStringSettingValue("RawInput", key.c_str(), mouse.device_path.c_str());
+			const std::string vidpid = ExtractVidPid(mouse.device_path);
+			if (!vidpid.empty())
+				Host::SetBaseStringSettingValue("RawInput", key.c_str(), vidpid.c_str());
 		}
 		Host::CommitBaseSettingChanges();
 	}
