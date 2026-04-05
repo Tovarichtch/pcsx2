@@ -326,23 +326,12 @@ namespace usb_lightgun
 				old_mode, old_px, old_py);
 
 			// Calibration lock logic in SET_PARAM:
-			// - CALIB_BTN_AUTO (VC): lock immediately on first SET_PARAM after trigger.
-			//   No button press needed — game confirms calibration via SET_PARAM itself.
 			// - Button-based (calib_done_btn != NONE/AUTO): mark calib_responded.
 			//   Lock happens in poll handler when the done button is pressed.
+			// - CALIB_BTN_AUTO (VC): lock happens in poll handler after snap_frame clears.
+			//   SET_PARAM is not used for locking — just update params normally.
 			// - no_photodiode (GF2): already locked at boot, ignore all SET_PARAMs.
-			if (us->calib_done_btn == CALIB_BTN_AUTO)
-			{
-				if (us->has_triggered && !us->calibration_locked)
-				{
-					us->calibration_locked = true;
-					if (us->calibration_active)
-						us->calibration_active = false;
-					Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto] (param: %d,%d)",
-						us->port, us->param_x, us->param_y);
-				}
-			}
-			else if (us->calib_done_btn != CALIB_BTN_NONE)
+			if (us->calib_done_btn != CALIB_BTN_NONE && us->calib_done_btn != CALIB_BTN_AUTO)
 			{
 				// Button-based games: mark that the game responded to calibration.
 				if (us->has_triggered && !us->calibration_locked)
@@ -458,6 +447,14 @@ namespace usb_lightgun
 							else if (us->snap_frame != 0)
 							{
 								us->snap_frame = 0; // next frame: back to live mouse
+								// CALIB_BTN_AUTO: lock here — full sequence (delay+dark+snap) complete.
+								// Game has received all calibration data. Lock now, no button needed.
+								if (us->calib_done_btn == CALIB_BTN_AUTO && !us->calibration_locked)
+								{
+									us->calibration_locked = true;
+									Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto, post-snap]",
+										us->port);
+								}
 							}
 
 							if (us->calibration_active)
@@ -509,7 +506,6 @@ namespace usb_lightgun
 					// has_triggered: player has fired at least once.
 					// calib_responded: game sent SET_PARAM after trigger (calibration happened).
 					// Both conditions prevent premature lock (boot buttons, logo skips).
-					// CALIB_BTN_AUTO is handled in SET_PARAM handler — skip here.
 					if (us->calib_done_btn != CALIB_BTN_NONE && us->calib_done_btn != CALIB_BTN_AUTO &&
 						us->has_triggered && us->calib_responded && !us->calibration_locked)
 					{
