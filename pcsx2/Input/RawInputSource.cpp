@@ -200,14 +200,40 @@ bool RawInputSource::ReloadDevices()
 		if (m_mice.size() >= InputManager::MAX_POINTER_DEVICES)
 			break;
 
-		// Find a free pointer_index using a taken-slots bitmask.
+		// Check ini for a saved pointer index for this VID+PID.
+		// This restores the assignment after a full disconnect/reconnect,
+		// even when m_mice was empty and order of reconnection differs.
+		u32 preferred_slot = InputManager::MAX_POINTER_DEVICES; // sentinel = not found
+		for (u32 slot = 0; slot < InputManager::MAX_POINTER_DEVICES; slot++)
+		{
+			const std::string key = fmt::format("Pointer{}Device", slot);
+			const std::string stored = Host::GetBaseStringSettingValue("RawInput", key.c_str(), "");
+			if (stored == vidpid)
+			{
+				preferred_slot = slot;
+				break;
+			}
+		}
+
+		// Use saved slot if free, otherwise fall back to first free slot.
 		u32 taken_mask = 0;
 		for (const auto& m : m_mice)
 			if (m.pointer_index < InputManager::MAX_POINTER_DEVICES)
 				taken_mask |= (1u << m.pointer_index);
-		const u32 free_slot = static_cast<u32>(std::countr_zero(~taken_mask));
-		if (free_slot >= InputManager::MAX_POINTER_DEVICES)
-			break;
+
+		u32 assigned_slot;
+		if (preferred_slot < InputManager::MAX_POINTER_DEVICES &&
+			!(taken_mask & (1u << preferred_slot)))
+		{
+			assigned_slot = preferred_slot;
+			Console.WriteLn("(RawInput) Restored pointer %u for %s (VID+PID match).", assigned_slot, vidpid.c_str());
+		}
+		else
+		{
+			assigned_slot = static_cast<u32>(std::countr_zero(~taken_mask));
+			if (assigned_slot >= InputManager::MAX_POINTER_DEVICES)
+				break;
+		}
 
 		// Get display name.
 		std::wstring wpath;
@@ -215,13 +241,13 @@ bool RawInputSource::ReloadDevices()
 			const std::wstring tmp = StringUtil::UTF8StringToWideString(path);
 			wpath = tmp;
 		}
-		std::string display_name = GetDisplayNameForDevice(path, wpath, free_slot);
+		std::string display_name = GetDisplayNameForDevice(path, wpath, assigned_slot);
 
 		RawMouseDevice dev;
 		dev.handle = handle;
 		dev.device_path = path;
 		dev.display_name = std::move(display_name);
-		dev.pointer_index = free_slot;
+		dev.pointer_index = assigned_slot;
 		dev.button_state = 0;
 		dev.seen_absolute = false;
 
