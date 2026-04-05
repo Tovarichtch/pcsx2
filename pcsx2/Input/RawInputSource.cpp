@@ -525,7 +525,6 @@ void RawInputSource::AssignPointerIndices()
 		// Update display names to include the final pointer index.
 		for (auto& mouse : m_mice)
 		{
-			// Regenerate display name with correct index.
 			const std::wstring wpath = StringUtil::UTF8StringToWideString(mouse.device_path);
 			mouse.display_name = GetDisplayNameForDevice(mouse.device_path, wpath, mouse.pointer_index);
 		}
@@ -533,7 +532,6 @@ void RawInputSource::AssignPointerIndices()
 	else
 	{
 		// No stored settings: enumerate order = pointer order.
-		// Cap at MAX_POINTER_DEVICES.
 		u32 idx = 0;
 		for (auto& mouse : m_mice)
 		{
@@ -541,20 +539,20 @@ void RawInputSource::AssignPointerIndices()
 				break;
 			mouse.pointer_index = idx++;
 		}
-
-		// Save to ini so it persists across reboots.
-		Console.WriteLn("(RawInput) No stored assignments, saving current order.");
-		for (const auto& mouse : m_mice)
-		{
-			if (mouse.pointer_index >= InputManager::MAX_POINTER_DEVICES)
-				continue;
-			const std::string key = fmt::format("Pointer{}Device", mouse.pointer_index);
-			const std::string vidpid = ExtractVidPid(mouse.device_path);
-			if (!vidpid.empty())
-				Host::SetBaseStringSettingValue("RawInput", key.c_str(), vidpid.c_str());
-		}
-		Host::CommitBaseSettingChanges();
 	}
+
+	// Always save current VID+PID assignments — migrates stale full-path entries
+	// and ensures ReloadDevices can restore indices after full disconnect/reconnect.
+	for (const auto& mouse : m_mice)
+	{
+		if (mouse.pointer_index >= InputManager::MAX_POINTER_DEVICES)
+			continue;
+		const std::string key = fmt::format("Pointer{}Device", mouse.pointer_index);
+		const std::string vidpid = ExtractVidPid(mouse.device_path);
+		if (!vidpid.empty())
+			Host::SetBaseStringSettingValue("RawInput", key.c_str(), vidpid.c_str());
+	}
+	Host::CommitBaseSettingChanges();
 }
 
 void RawInputSource::RebuildHandleMap()
@@ -582,7 +580,12 @@ std::vector<std::pair<std::string, std::string>> RawInputSource::GetRawMouseDevi
 {
 	std::vector<std::pair<std::string, std::string>> result;
 	for (const auto& mouse : m_mice)
-		result.emplace_back(mouse.device_path, mouse.display_name);
+	{
+		// Use VID+PID as the identifier so pointer_source survives USB port changes.
+		// Falls back to full device_path if VID+PID can't be extracted.
+		const std::string vidpid = ExtractVidPid(mouse.device_path);
+		result.emplace_back(vidpid.empty() ? mouse.device_path : vidpid, mouse.display_name);
+	}
 	return result;
 }
 
