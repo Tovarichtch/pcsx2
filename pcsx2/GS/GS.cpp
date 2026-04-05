@@ -6,6 +6,7 @@
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiManager.h"
 #include "GS/GS.h"
+#include "USB/usb-lightgun/guncon2.h"
 #include "GS/GSCapture.h"
 #include "GS/GSExtra.h"
 #include "GS/GSGL.h"

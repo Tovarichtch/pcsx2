@@ -94,7 +94,7 @@ namespace usb_lightgun
 		{"SLPM-67529", 100.0f,  100.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (KR) NTSC Capcom vanilla
 		{"SLPM-65245", 100.0f,  101.25f, 422, 134, 640, 224, CalibDoneBtn::Start,  3, 1, true},  // Gun Survivor 4 (J) NTSC Capcom
 		{"SLES-52620",  89.75f, 112.0f,  422, 148, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Guncom 2 (E) PAL vanilla
-		{"SLES-51289", 105.0f,   88.0f,  422, 164, 512, 256, CalibDoneBtn::None,   3, 1, true},  // Gunfighter II (E) PAL no_photodiode
+		{"SLES-51289", 105.0f,   88.0f,  422, 164, 512, 256, CalibDoneBtn::None,   3, 1, true},  // Gunfighter II (E) PAL — locked at boot, no calibration flow
 		{"SLPS-25165",  90.0f,  105.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Gunvari Collection (J) NTSC Namco
 		{"SCES-50889",  90.0f,   97.5f,  422, 169, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (E) PAL Namco
 		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (J) NTSC Namco
@@ -103,10 +103,10 @@ namespace usb_lightgun
 		{"SLES-51448",  90.25f, 108.0f,  422, 134, 640, 225, CalibDoneBtn::Start,  3, 1, true},  // RE Dead Aim (E) PAL
 		{"SLUS-20669",  90.5f,  114.0f,  422, 134, 640, 240, CalibDoneBtn::Start,  3, 1, true},  // RE Dead Aim (U) NTSC
 		{"SLES-50650", 100.0f,  100.0f,  422, 134, 640, 224, CalibDoneBtn::Start,  0, 0, false}, // RE Survivor 2 (E) PAL Capcom vanilla (dark inject pollutes SDK accum)
-		{"SLES-51617",  90.0f,   82.5f,  422, 134, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, En) PAL vanilla+no_photodiode
-		{"SLES-51783",  90.0f,   82.5f,  422, 134, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, Fr/De) PAL vanilla+no_photodiode
-		{"SLKA-25090",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (KR) NTSC vanilla+no_photodiode
-		{"SLUS-20619",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (U) NTSC vanilla+no_photodiode
+		{"SLES-51617",  90.0f,   82.5f,  422, 134, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, En) PAL — grey screen calibration, no photodiode sensor
+		{"SLES-51783",  90.0f,   82.5f,  422, 134, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, Fr/De) PAL — grey screen calibration, no photodiode sensor
+		{"SLKA-25090",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (KR) NTSC — grey screen calibration, no photodiode sensor
+		{"SLUS-20619",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (U) NTSC — grey screen calibration, no photodiode sensor
 		{"SCES-50300",  90.0f,  103.0f,  437, 164, 640, 256, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (E) PAL Namco dist_8101
 		{"SLPS-20122",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (J) NTSC Namco dist_8101
 		{"SCKA-20002",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (KR) NTSC Namco dist_8101
