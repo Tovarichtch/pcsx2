@@ -430,8 +430,6 @@ namespace usb_lightgun
 						if (!us->calib_locked)
 						{
 							// Start calibration on trigger press edge
-							// For CalibDoneBtn::Auto (VC): require game to have sent SET_PARAM first.
-							// Prevents dark inject from firing if player shoots during logos.
 							const bool game_ready = (us->lock_btn != CalibDoneBtn::Auto || us->calib_set_param);
 							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calib_active && !us->dark_inject_active
 								&& game_ready)
@@ -571,12 +569,12 @@ namespace usb_lightgun
 	{
 		GunCon2State* us = USB_CONTAINER_OF(dev, GunCon2State, dev);
 
-		Console.WriteLn("(GunCon2) usb_hid_unrealize port %u: cursor_path='%s' index=%u",
-			us->port, us->cursor_path.c_str(), us->GetSoftwarePointerIndex());
-		if (!us->cursor_path.empty())
+		// Only clear the software cursor if the GS thread is still running.
+		// On game quit, USB is torn down while GS may already be closed.
+		if (!us->cursor_path.empty() && MTGS::IsOpen())
 		{
 			ImGuiManager::ClearSoftwareCursor(us->GetSoftwarePointerIndex());
-			us->cursor_path.clear(); // Force UpdateSettings to re-set cursor on next game start.
+			us->cursor_path.clear();
 		}
 
 		delete us;
@@ -856,8 +854,6 @@ namespace usb_lightgun
 			s->cursor_color = cursor_color;
 			if (!s->cursor_path.empty())
 			{
-				Console.WriteLn("(GunCon2) UpdateSettings SetSoftwareCursor [%d]: path='%s' scale=%.2f",
-					new_pointer_index, s->cursor_path.c_str(), s->cursor_scale);
 				ImGuiManager::SetSoftwareCursor(new_pointer_index, s->cursor_path, s->cursor_scale, s->cursor_color);
 				s->UpdateSoftwarePointerPosition();
 			}
