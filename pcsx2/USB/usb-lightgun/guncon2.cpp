@@ -55,8 +55,7 @@ namespace usb_lightgun
 		None     = 0, // No button lock — game locked at boot (GF2)
 		AB       = 1, // A or B on GunCon2 (Namco, DCOX, GC2)
 		Start    = 2, // START on GunCon2 (Capcom DS, GS, REDA)
-		Offscreen = 3, // Offscreen shot
-		Auto     = 4, // Auto-lock after SET_PARAM silence (VC — no button needed)
+		Auto     = 3, // Auto-lock after SET_PARAM silence (VC — no button needed)
 	};
 
 	// Right pain in the arse. Different games seem to have different scales..
@@ -68,19 +67,19 @@ namespace usb_lightgun
 		float scale_x, scale_y;
 		u32 center_x, center_y;
 		u32 screen_width, screen_height;
-		CalibDoneBtn calib_done_btn; // Button that locks calibration (NONE = GF2 locked at boot).
-		u32 dark_delay;    // V-sync frames before dark (both fire_once and VC). 0=use photodiode.
+		CalibDoneBtn lock_btn; // Button that locks calibration (NONE = GF2 locked at boot).
+		u32 dark_delay;    // V-sync frames before dark (both inject_calib_only and VC). 0=use photodiode.
 		u32 dark_duration; // V-sync frames of dark. 0=use photodiode.
-		bool fire_once;    // true = V-sync dark inject for calibration. false = vanilla photodiode.
+		bool inject_calib_only;    // true = V-sync dark inject for calibration. false = vanilla photodiode.
 	};
 
 	static constexpr const GameConfig s_game_config[] = {
 		// ELF-based calibration: cx/cy from addiu opcodes, W/H from slti thresholds.
 		// screen_height = ELF height / 2 (interlaced half-field).
 		// scale_x/scale_y calibrated empirically per game.
-		// dark_delay/dark_duration: V-sync frames. fire_once=true → calibration dark inject. fire_once=false → vanilla photodiode.
-		// fire_once: true = calibration only, false = every shot (Sega VC).
-		// calib_done_btn: AB/START/OFF/NONE — button that confirms calibration is done.
+		// dark_delay/dark_duration: V-sync frames. inject_calib_only=true → calibration dark inject. inject_calib_only=false → vanilla photodiode.
+		// inject_calib_only: true = calibration only, false = every shot (Sega VC).
+		// lock_btn: AB/START/OFF/NONE — button that confirms calibration is done.
 		//                                       sx       sy     cx   cy    w    h   done_btn       dly dur  f1
 		{"SLPM-62401",  89.75f, 113.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Death Crimson OX+ (J) NTSC vanilla
 		{"SLES-50930",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, En) PAL Capcom vanilla
@@ -191,34 +190,34 @@ namespace usb_lightgun
 		s16 param_y = 0;
 		u16 param_mode = 0;
 
-		s16 calibration_pos_x = 0;
-		s16 calibration_pos_y = 0;
+		s16 calib_pos_x = 0;
+		s16 calib_pos_y = 0;
 
 		// Calibration lock: dark_inject runs on every trigger until locked.
-		// Lock triggered by calib_done_btn press after game has responded to calibration.
-		// has_triggered: set on first trigger press (gates boot-time SET_PARAMs).
-		// calib_responded: set when SET_PARAM received while has_triggered=true.
-		// Lock condition: has_triggered && calib_responded && done_button pressed.
-		bool calibration_locked = false;
-		CalibDoneBtn calib_done_btn = CalibDoneBtn::None;
-		bool has_triggered = false;    // Player has pressed trigger at least once.
-		bool calib_responded = false;  // Game sent SET_PARAM after has_triggered.
-		u32 pending_poll_count = 0;    // Polls since last SET_PARAM (CalibDoneBtn::Auto only — VC).
+		// Lock triggered by lock_btn press after game has responded to calibration.
+		// enable_calib: set on first trigger press (gates boot-time SET_PARAMs).
+		// calib_set_param: set when SET_PARAM received while enable_calib=true.
+		// Lock condition: enable_calib && calib_set_param && done_button pressed.
+		bool calib_locked = false;
+		CalibDoneBtn lock_btn = CalibDoneBtn::None;
+		bool enable_calib = false;    // true = calibration flow enabled (player has fired at least once).
+		bool calib_set_param = false;  // Game sent SET_PARAM after enable_calib.
+		u32 vc_poll_count = 0;    // Polls since last SET_PARAM (CalibDoneBtn::Auto only — VC settle).
 
 		// Trigger-delayed dark injection: replaces photodiode for games with configured dark_delay.
 		// Real GunCon2 on CRT: photodiode detects dark within the same vsync.
 		// Our ring buffer: dark arrives ~13 polls later (too late for CZ, latency for VC).
-		// fire_once=true: V-sync frame-aligned dark inject via g_FrameCount, calibration only.
-		bool dark_inject_fired = false; // Edge detect: only inject once per trigger press.
+		// inject_calib_only=true: V-sync frame-aligned dark inject via g_FrameCount, calibration only.
+		bool dark_inject_active = false; // Edge detect: only inject once per trigger press.
 		u32 dark_delay = 0;    // V-sync frames before dark. 0 = use vanilla photodiode.
 		u32 dark_duration = 0; // V-sync frames of dark. Set from GameConfig.
-		bool fire_once = false; // true = V-sync dark inject for calibration. false = vanilla photodiode.
+		bool inject_calib_only = false; // true = V-sync dark inject for calibration. false = vanilla photodiode.
 
-		// fire_once calibration: V-sync aligned mechanism triggered by first trigger.
+		// inject_calib_only calibration: V-sync aligned mechanism triggered by first trigger.
 		// Force trigger down, send stored position during delay frames, then send (0,0)
 		// for duration frames. Uses g_FrameCount — aligned to game V-blank.
-		bool calibration_active = false;   // true = currently in calibration sequence
-		u32 calibration_start_frame = 0;   // g_FrameCount at trigger press
+		bool calib_active = false;   // true = currently in calibration sequence
+		u32 calib_start = 0;   // g_FrameCount at trigger press
 		u32 snap_frame = UINT32_MAX;       // Frame where snap position persists (UINT32_MAX = inactive)
 
 		bool auto_config_done = false;
@@ -318,31 +317,31 @@ namespace usb_lightgun
 			us->param_y = static_cast<u16>(data[2]) | (static_cast<u16>(data[3]) << 8);
 			us->param_mode = static_cast<u16>(data[4]) | (static_cast<u16>(data[5]) << 8);
 			// Log SET_PARAM during calibration only — skip after lock to avoid log spam.
-			if (!us->calibration_locked)
+			if (!us->calib_locked)
 				Console.WriteLn("(GunCon2) Port %u SET_PARAM mode=0x%04X param_x=%d param_y=%d (was mode=0x%04X x=%d y=%d)",
 				us->port, us->param_mode, us->param_x, us->param_y,
 				old_mode, old_px, old_py);
 
 			// Calibration lock logic in SET_PARAM:
-			// - Button-based (calib_done_btn != NONE/AUTO): mark calib_responded.
+			// - Button-based (lock_btn != NONE/AUTO): mark calib_set_param.
 			//   Lock happens in poll handler when the done button is pressed.
 			// - CalibDoneBtn::Auto (VC): reset settle counter on every SET_PARAM.
 			//   Lock happens after 750 polls (~6s) of SET_PARAM silence.
 			// - CalibDoneBtn::None (GF2): already locked at boot, ignore all SET_PARAMs.
-			if (us->calib_done_btn == CalibDoneBtn::Auto)
+			if (us->lock_btn == CalibDoneBtn::Auto)
 			{
 				// Any SET_PARAM resets the settle counter — player is still calibrating.
-				if (us->has_triggered && !us->calibration_locked)
-					us->pending_poll_count = 0;
+				if (us->enable_calib && !us->calib_locked)
+					us->vc_poll_count = 0;
 			}
-			else if (us->calib_done_btn != CalibDoneBtn::None)
+			else if (us->lock_btn != CalibDoneBtn::None)
 			{
 				// Button-based games: mark that the game responded to calibration.
-				if (us->has_triggered && !us->calibration_locked)
+				if (us->enable_calib && !us->calib_locked)
 				{
-					if (!us->calib_responded)
+					if (!us->calib_set_param)
 					{
-						us->calib_responded = true;
+						us->calib_set_param = true;
 						Console.WriteLn("(GunCon2) Port %u: game responded to calibration (param: %d,%d) — waiting for done button",
 							us->port, us->param_x, us->param_y);
 					}
@@ -387,15 +386,15 @@ namespace usb_lightgun
 					// Recalibrate fallback: player-assigned button resets calibration lock.
 					// Useful if calibration fails or the game gets confused mid-session.
 					// Only acts when locked — no-op while calibration is already in progress.
-					if ((us->button_state & (1u << BID_RECALIBRATE)) && us->calibration_locked)
+					if ((us->button_state & (1u << BID_RECALIBRATE)) && us->calib_locked)
 					{
-						us->calibration_locked = false;
-						us->calib_responded = false;
-						us->has_triggered = false;
-						us->calibration_active = false;
-						us->dark_inject_fired = false;
+						us->calib_locked = false;
+						us->calib_set_param = false;
+						us->enable_calib = false;
+						us->calib_active = false;
+						us->dark_inject_active = false;
 						us->snap_frame = UINT32_MAX;
-						us->pending_poll_count = 0;
+						us->vc_poll_count = 0;
 						Console.WriteLn("(GunCon2) Port %u: recalibrate — calibration reset", us->port);
 					}
 
@@ -406,39 +405,39 @@ namespace usb_lightgun
 						out.pos_y = 0;
 					}
 
-					// Track first trigger for ALL games (vanilla, fire_once, VC).
-					// Required for calibration lock flow: has_triggered → calib_responded → lock.
+					// Track first trigger for ALL games (vanilla, inject_calib_only, VC).
+					// Required for calibration lock flow: enable_calib → calib_set_param → lock.
 					// DCOX/GC2 (vanilla) need this to enable lock and block dark in gameplay.
-					if ((us->button_state & (1u << BID_TRIGGER)) && !us->has_triggered)
+					if ((us->button_state & (1u << BID_TRIGGER)) && !us->enable_calib)
 					{
-						us->has_triggered = true;
+						us->enable_calib = true;
 						Console.WriteLn("(GunCon2) Port %u: first trigger — params (%d,%d)",
 							us->port, us->param_x, us->param_y);
 					}
 
-					if (us->fire_once && us->dark_delay > 0)
+					if (us->inject_calib_only && us->dark_delay > 0)
 					{
-						// fire_once calibration: V-sync aligned dark injection.
+						// inject_calib_only calibration: V-sync aligned dark injection.
 						// On first trigger: store position and g_FrameCount.
 						// Send stored pos for dark_delay frames, then (0,0) for dark_duration frames.
 						// snap_frame: persist stored position for ALL polls of the capture frame.
 						// PAL and NTSC use same frame values — V-sync aligned.
-						// After calibration_locked: do nothing — trigger = normal shot.
-						if (!us->calibration_locked)
+						// After calib_locked: do nothing — trigger = normal shot.
+						if (!us->calib_locked)
 						{
 							// Start calibration on trigger press edge
-							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calibration_active && !us->dark_inject_fired)
+							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calib_active && !us->dark_inject_active)
 							{
-								us->calibration_active = true;
-								us->calibration_start_frame = g_FrameCount;
-								us->calibration_pos_x = pos_x;
-								us->calibration_pos_y = pos_y;
-								us->dark_inject_fired = true;
+								us->calib_active = true;
+								us->calib_start = g_FrameCount;
+								us->calib_pos_x = pos_x;
+								us->calib_pos_y = pos_y;
+								us->dark_inject_active = true;
 							}
 							// Reset edge-detect when trigger released and no calibration active,
 							// allowing a fresh dark inject on the next trigger press.
-							if (!us->calibration_active && !(us->button_state & (1u << BID_TRIGGER)))
-								us->dark_inject_fired = false;
+							if (!us->calib_active && !(us->button_state & (1u << BID_TRIGGER)))
+								us->dark_inject_active = false;
 
 							// Snap: persist stored position for ALL polls of the snap frame.
 							// Without this, the SDK reads the live mouse on later polls
@@ -447,8 +446,8 @@ namespace usb_lightgun
 							{
 								if (g_FrameCount == us->snap_frame)
 								{
-									out.pos_x = us->calibration_pos_x;
-									out.pos_y = us->calibration_pos_y;
+									out.pos_x = us->calib_pos_x;
+									out.pos_y = us->calib_pos_y;
 								}
 								else
 								{
@@ -456,19 +455,19 @@ namespace usb_lightgun
 								}
 							}
 
-							if (us->calibration_active)
+							if (us->calib_active)
 							{
 								// Force trigger down during calibration sequence
 								out.buttons &= ~(1u << BID_TRIGGER);
 
-								const u32 elapsed_frames = g_FrameCount - us->calibration_start_frame;
+								const u32 elapsed_frames = g_FrameCount - us->calib_start;
 								const u32 dark_end = us->dark_delay + us->dark_duration;
 
 								if (elapsed_frames < us->dark_delay)
 								{
 									// Delay phase: send stored position (game accumulates)
-									out.pos_x = us->calibration_pos_x;
-									out.pos_y = us->calibration_pos_y;
+									out.pos_x = us->calib_pos_x;
+									out.pos_y = us->calib_pos_y;
 								}
 								else if (elapsed_frames < dark_end)
 								{
@@ -480,23 +479,23 @@ namespace usb_lightgun
 								{
 									// Done — start snap: persist stored position for
 									// the entire frame so SDK captures it at V-blank.
-									us->calibration_active = false;
+									us->calib_active = false;
 									us->snap_frame = g_FrameCount;
-									out.pos_x = us->calibration_pos_x;
-									out.pos_y = us->calibration_pos_y;
+									out.pos_x = us->calib_pos_x;
+									out.pos_y = us->calib_pos_y;
 								}
 							}
 						}
-						// After calibration_locked: trigger = normal. No dark, no forced trigger.
+						// After calib_locked: trigger = normal. No dark, no forced trigger.
 					}
 					else
 					{
 						// Standard photodiode for games without dark_inject (NA, TC2, etc).
 						// Before calibration lock: dark → pos=(0,0) for calibration to work.
 						// After calibration lock: dark BLOCKED — prevents false darks.
-						// dark is declared here (not above) since fire_once branch never uses it.
+						// dark is declared here (not above) since inject_calib_only branch never uses it.
 						const bool dark = g_guncon2_display_dark.load(std::memory_order_acquire);
-						if (dark && !us->calibration_locked)
+						if (dark && !us->calib_locked)
 						{
 							out.pos_x = 0;
 							out.pos_y = 0;
@@ -505,26 +504,26 @@ namespace usb_lightgun
 
 					// CalibDoneBtn::Auto settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
 					// Counter resets on every SET_PARAM. Counts from first trigger press.
-					if (us->calib_done_btn == CalibDoneBtn::Auto &&
-						us->has_triggered && !us->calibration_locked)
+					if (us->lock_btn == CalibDoneBtn::Auto &&
+						us->enable_calib && !us->calib_locked)
 					{
-						if (++us->pending_poll_count >= GUNCON2_VC_SETTLE_POLLS)
+						if (++us->vc_poll_count >= GUNCON2_VC_SETTLE_POLLS)
 						{
-							us->calibration_locked = true;
+							us->calib_locked = true;
 							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto, %u polls]",
-								us->port, us->pending_poll_count);
+								us->port, us->vc_poll_count);
 						}
 					}
 
 					// Button-based lock: player presses done button after game responded.
-					// has_triggered: player has fired at least once.
-					// calib_responded: game sent SET_PARAM after trigger (calibration happened).
+					// enable_calib: player has fired at least once.
+					// calib_set_param: game sent SET_PARAM after trigger (calibration happened).
 					// Both conditions prevent premature lock (boot buttons, logo skips).
-					if (us->calib_done_btn != CalibDoneBtn::None && us->calib_done_btn != CalibDoneBtn::Auto &&
-						us->has_triggered && us->calib_responded && !us->calibration_locked)
+					if (us->lock_btn != CalibDoneBtn::None && us->lock_btn != CalibDoneBtn::Auto &&
+						us->enable_calib && us->calib_set_param && !us->calib_locked)
 					{
 						bool done_pressed = false;
-						switch (us->calib_done_btn)
+						switch (us->lock_btn)
 						{
 						case CalibDoneBtn::AB:
 							done_pressed = (us->button_state & ((1u << BID_A) | (1u << BID_B))) != 0;
@@ -532,16 +531,13 @@ namespace usb_lightgun
 						case CalibDoneBtn::Start:
 							done_pressed = (us->button_state & (1u << BID_START)) != 0;
 							break;
-						case CalibDoneBtn::Offscreen:
-							done_pressed = (us->button_state & (1u << BID_SHOOT_OFFSCREEN)) != 0;
-							break;
 						default:
 							break;
 						}
 						if (done_pressed)
 						{
-							us->calibration_locked = true;
-							us->calibration_active = false;
+							us->calib_locked = true;
+							us->calib_active = false;
 							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [button] (param: %d,%d)",
 								us->port, us->param_x, us->param_y);
 						}
@@ -618,30 +614,30 @@ namespace usb_lightgun
 
 			// CalibDoneBtn::None at boot = no calibration flow needed (GF2).
 			// Lock immediately so the game never receives dark frames.
-			if (gc.calib_done_btn == CalibDoneBtn::None)
+			if (gc.lock_btn == CalibDoneBtn::None)
 			{
-				calibration_locked = true;
+				calib_locked = true;
 				Console.WriteLn("(GunCon2) Port %u: locked at boot (CalibDoneBtn::None)", port);
 			}
 
 			// Calibration done button: which button locks dark_inject after calibration.
-			calib_done_btn = gc.calib_done_btn;
-			if (gc.calib_done_btn != CalibDoneBtn::None)
+			lock_btn = gc.lock_btn;
+			if (gc.lock_btn != CalibDoneBtn::None)
 			{
-				static const char* btn_names[] = {"None", "A/B", "Start", "Offscreen", "Auto"};
-				Console.WriteLn("(GunCon2) Port %u: calibration done button = %s", port, btn_names[static_cast<u8>(gc.calib_done_btn)]);
+				static const char* btn_names[] = {"None", "A/B", "Start", "Auto"};
+				Console.WriteLn("(GunCon2) Port %u: calibration done button = %s", port, btn_names[static_cast<u8>(gc.lock_btn)]);
 			}
 
 			// Per-game dark injection timing. Always set from GameConfig to
 			// override any stale values from PCSX2 saved settings.
 			dark_delay = gc.dark_delay;
 			dark_duration = gc.dark_duration;
-			fire_once = gc.fire_once;
+			inject_calib_only = gc.inject_calib_only;
 
 			if (gc.dark_delay > 0 || gc.dark_duration > 0)
 			{
-				Console.WriteLn("(GunCon2) Port %u: dark inject enabled (delay=%u dur=%u frames, fire_once=%s)",
-					port, dark_delay, dark_duration, fire_once ? "YES" : "NO");
+				Console.WriteLn("(GunCon2) Port %u: dark inject enabled (delay=%u dur=%u frames, inject_calib_only=%s)",
+					port, dark_delay, dark_duration, inject_calib_only ? "YES" : "NO");
 			}
 			else
 			{
@@ -982,8 +978,8 @@ namespace usb_lightgun
 		sw.Do(&s->param_x);
 		sw.Do(&s->param_y);
 		sw.Do(&s->param_mode);
-		sw.Do(&s->calibration_pos_x);
-		sw.Do(&s->calibration_pos_y);
+		sw.Do(&s->calib_pos_x);
+		sw.Do(&s->calib_pos_y);
 		sw.Do(&s->auto_config_done);
 		float scale_x = s->scale_x;
 		float scale_y = s->scale_y;
@@ -1000,7 +996,7 @@ namespace usb_lightgun
 
 		// Serialized for binary layout compatibility only.
 		// Immediately reset on read to force AutoConfigure() to re-run at the next control
-		// packet, re-applying dark_delay, fire_once, calib_done_btn from GameConfig.
+		// packet, re-applying dark_delay, inject_calib_only, lock_btn from GameConfig.
 		if (sw.IsReading())
 			s->auto_config_done = false;
 
