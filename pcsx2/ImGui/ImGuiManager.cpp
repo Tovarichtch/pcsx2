@@ -1152,8 +1152,7 @@ void ImGuiManager::SetSoftwareCursor(u32 index, std::string image_path, float im
 
 	// Queue texture creation/destruction on the GS thread.
 	MTGS::RunOnGSThread([index, image_path = std::move(image_path), image_scale]() {
-		if (MTGS::IsOpen())
-			UpdateSoftwareCursorTexture(index);
+		UpdateSoftwareCursorTexture(index);
 	});
 
 	// Hide the system cursor when we activate a software cursor.
