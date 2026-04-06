@@ -59,7 +59,6 @@
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
-#include "pcsx2/Input/RawInputSource.h"
 #include <Dbt.h>
 #endif
 
@@ -2454,12 +2453,10 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 					{
 						HWND render_hwnd = m_display_surface ?
 							reinterpret_cast<HWND>(m_display_surface->winId()) : static_cast<HWND>(nullptr);
-						// Downcast is safe: RawInput source type guarantees RawInputSource instance.
 						pxAssertMsg(dynamic_cast<RawInputSource*>(raw_source), "Expected RawInputSource");
 						static_cast<RawInputSource*>(raw_source)->ProcessRawInput(raw, render_hwnd);
 					}
 
-					// Mouse lock/clamp for system cursor (always active).
 					if (raw->header.dwType == RIM_TYPEMOUSE)
 					{
 						const RAWMOUSE& mouse = raw->data.mouse;
