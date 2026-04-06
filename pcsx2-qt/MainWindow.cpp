@@ -59,6 +59,7 @@
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
+#include "pcsx2/Input/RawInputSource.h"
 #include <Dbt.h>
 #endif
 
@@ -2440,12 +2441,34 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 			UINT dwSize = 0;
 			GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
 
+			// RAWINPUT for a mouse event is exactly sizeof(RAWINPUT) bytes.
+			// Warn and skip if Windows reports an unexpectedly larger size.
 			if (dwSize > 0)
 			{
-				std::vector<BYTE> lpb(dwSize);
-				if (GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, lpb.data(), &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
+				if (dwSize > sizeof(RAWINPUT))
 				{
-					const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(lpb.data());
+					Console.Warning("(RawInput) WM_INPUT event size %u > sizeof(RAWINPUT) %zu — skipping.",
+						dwSize, sizeof(RAWINPUT));
+					*result = 0;
+					return true;
+				}
+				BYTE lpb[sizeof(RAWINPUT)];
+				if (GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
+				{
+					const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(lpb);
+
+					// Dispatch to RawInputSource for per-device tracking.
+					InputSource* raw_source = InputManager::GetInputSourceInterface(InputSourceType::RawInput);
+					if (raw_source && raw_source->IsInitialized())
+					{
+						HWND render_hwnd = m_display_surface ?
+							reinterpret_cast<HWND>(m_display_surface->winId()) : static_cast<HWND>(nullptr);
+						// Downcast is safe: RawInput source type guarantees RawInputSource instance.
+						pxAssertMsg(dynamic_cast<RawInputSource*>(raw_source), "Expected RawInputSource");
+						static_cast<RawInputSource*>(raw_source)->ProcessRawInput(raw, render_hwnd);
+					}
+
+					// Mouse lock/clamp for system cursor (always active).
 					if (raw->header.dwType == RIM_TYPEMOUSE)
 					{
 						const RAWMOUSE& mouse = raw->data.mouse;

@@ -69,7 +69,10 @@ void DisplaySurface::updateRelativeMode(bool enabled)
 {
 #ifdef _WIN32
 	// prefer ClipCursor() over warping movement when we're using raw input
-	bool clip_cursor = enabled && false /*InputManager::IsUsingRawInput()*/;
+	// Clip cursor when RawInput is active: prevents the system cursor from leaving the
+	// window while guns are in use. Upstream had this disabled (false) pending a safe
+	// activation path; RawInput multi-gun tracking provides that path.
+	bool clip_cursor = enabled && InputManager::IsUsingRawInput();
 	if (m_relative_mouse_enabled == enabled && m_clip_mouse_enabled == clip_cursor)
 		return;
 
@@ -304,12 +307,17 @@ bool DisplaySurface::event(QEvent* event)
 
 			if (!m_relative_mouse_enabled)
 			{
-				const qreal dpr = devicePixelRatio();
-				const QPoint mouse_pos = mouse_event->pos();
+				// When RawInput is active, per-device positions are updated there.
+				// Don't overwrite them with the merged system cursor.
+				if (!InputManager::IsUsingRawInput())
+				{
+					const qreal dpr = devicePixelRatio();
+					const QPoint mouse_pos = mouse_event->pos();
 
-				const float scaled_x = static_cast<float>(static_cast<qreal>(mouse_pos.x()) * dpr);
-				const float scaled_y = static_cast<float>(static_cast<qreal>(mouse_pos.y()) * dpr);
-				InputManager::UpdatePointerAbsolutePosition(0, scaled_x, scaled_y);
+					const float scaled_x = static_cast<float>(static_cast<qreal>(mouse_pos.x()) * dpr);
+					const float scaled_y = static_cast<float>(static_cast<qreal>(mouse_pos.y()) * dpr);
+					InputManager::UpdatePointerAbsolutePosition(0, scaled_x, scaled_y);
+				}
 			}
 			else
 			{
@@ -350,11 +358,16 @@ bool DisplaySurface::event(QEvent* event)
 		{
 			if (const u32 button_mask = static_cast<u32>(static_cast<const QMouseEvent*>(event)->button()))
 			{
-				Host::RunOnCPUThread([button_index = std::countr_zero(button_mask),
-										 pressed = (event->type() != QEvent::MouseButtonRelease)]() {
-					InputManager::InvokeEvents(
-						InputManager::MakePointerButtonKey(0, button_index), static_cast<float>(pressed));
-				});
+				// When RawInput is active, per-device buttons are dispatched there.
+				// Don't duplicate them as Pointer-0 events.
+				if (!InputManager::IsUsingRawInput())
+				{
+					Host::RunOnCPUThread([button_index = std::countr_zero(button_mask),
+											 pressed = (event->type() != QEvent::MouseButtonRelease)]() {
+						InputManager::InvokeEvents(
+							InputManager::MakePointerButtonKey(0, button_index), static_cast<float>(pressed));
+					});
+				}
 			}
 
 			// don't toggle fullscreen when we're bound.. that wouldn't end well.
