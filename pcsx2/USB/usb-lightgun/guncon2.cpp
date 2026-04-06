@@ -3,6 +3,7 @@
 
 #include "Counters.h"
 #include "GS/GS.h"
+#include "MTGS.h"
 #include "Host.h"
 #include "IconsPromptFont.h"
 #include "ImGui/ImGuiManager.h"
