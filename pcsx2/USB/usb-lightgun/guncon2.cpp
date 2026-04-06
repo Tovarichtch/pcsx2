@@ -566,7 +566,10 @@ namespace usb_lightgun
 		Console.WriteLn("(GunCon2) usb_hid_unrealize port %u: cursor_path='%s' index=%u",
 			us->port, us->cursor_path.c_str(), us->GetSoftwarePointerIndex());
 		if (!us->cursor_path.empty())
+		{
 			ImGuiManager::ClearSoftwareCursor(us->GetSoftwarePointerIndex());
+			us->cursor_path.clear(); // Force UpdateSettings to re-set cursor on next game start.
+		}
 
 		delete us;
 	}
