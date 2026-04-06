@@ -550,9 +550,10 @@ namespace usb_lightgun
 					}
 
 					// CalibDoneBtn::Auto settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
-					// Counter resets on every SET_PARAM. Counts from first trigger press.
+					// Counter resets on every SET_PARAM. Requires calib_set_param to prevent
+					// premature lock if enable_calib is set during boot (mashing trigger).
 					if (us->lock_btn == CalibDoneBtn::Auto &&
-						us->enable_calib && !us->calib_locked)
+						us->enable_calib && us->calib_set_param && !us->calib_locked)
 					{
 						if (++us->vc_poll_count >= GUNCON2_VC_SETTLE_POLLS)
 						{
