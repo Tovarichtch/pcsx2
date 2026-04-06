@@ -1057,6 +1057,9 @@ void ImGuiManager::CreateSoftwareCursorTextures()
 {
 	for (u32 i = 0; i < InputManager::MAX_POINTER_DEVICES; i++)
 	{
+		Console.WriteLn("(ImGui) CreateSoftwareCursorTextures [%u]: path='%s' texture=%s",
+			i, s_software_cursors[i].image_path.c_str(),
+			s_software_cursors[i].texture ? "EXISTS" : "NULL");
 		if (!s_software_cursors[i].image_path.empty())
 			UpdateSoftwareCursorTexture(i);
 	}
@@ -1066,6 +1069,8 @@ void ImGuiManager::DestroySoftwareCursorTextures()
 {
 	for (u32 i = 0; i < InputManager::MAX_POINTER_DEVICES; i++)
 	{
+		Console.WriteLn("(ImGui) DestroySoftwareCursorTextures [%u]: path='%s'",
+			i, s_software_cursors[i].image_path.c_str());
 		s_software_cursors[i].texture.reset();
 	}
 }
@@ -1139,6 +1144,8 @@ void ImGuiManager::SetSoftwareCursor(u32 index, std::string image_path, float im
 			UpdateSoftwareCursorTexture(index);
 
 		// Hide the system cursor when we activate a software cursor.
+		Console.WriteLn("(ImGui) SetSoftwareCursor [%u]: path='%s' texture=%s is_hiding_or_showing=%d",
+			index, sc.image_path.c_str(), sc.texture ? "EXISTS" : "NULL", is_hiding_or_showing);
 		if (is_hiding_or_showing && index == 0)
 			Host::RunOnCPUThread(&InputManager::UpdateHostMouseMode);
 	});

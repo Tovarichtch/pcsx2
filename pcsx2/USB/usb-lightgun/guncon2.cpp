@@ -563,6 +563,8 @@ namespace usb_lightgun
 	{
 		GunCon2State* us = USB_CONTAINER_OF(dev, GunCon2State, dev);
 
+		Console.WriteLn("(GunCon2) usb_hid_unrealize port %u: cursor_path='%s' index=%u",
+			us->port, us->cursor_path.c_str(), us->GetSoftwarePointerIndex());
 		if (!us->cursor_path.empty())
 			ImGuiManager::ClearSoftwareCursor(us->GetSoftwarePointerIndex());
 
@@ -843,6 +845,8 @@ namespace usb_lightgun
 			s->cursor_color = cursor_color;
 			if (!s->cursor_path.empty())
 			{
+				Console.WriteLn("(GunCon2) UpdateSettings SetSoftwareCursor [%d]: path='%s' scale=%.2f",
+					new_pointer_index, s->cursor_path.c_str(), s->cursor_scale);
 				ImGuiManager::SetSoftwareCursor(new_pointer_index, s->cursor_path, s->cursor_scale, s->cursor_color);
 				s->UpdateSoftwarePointerPosition();
 			}
