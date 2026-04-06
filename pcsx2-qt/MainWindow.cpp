@@ -2441,21 +2441,12 @@ bool MainWindow::nativeEvent(const QByteArray& eventType, void* message, qintptr
 			UINT dwSize = 0;
 			GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
 
-			// RAWINPUT for a mouse event is exactly sizeof(RAWINPUT) bytes.
-			// Warn and skip if Windows reports an unexpectedly larger size.
 			if (dwSize > 0)
 			{
-				if (dwSize > sizeof(RAWINPUT))
+				std::vector<BYTE> lpb(dwSize);
+				if (GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, lpb.data(), &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
 				{
-					Console.Warning("(RawInput) WM_INPUT event size %u > sizeof(RAWINPUT) %zu — skipping.",
-						dwSize, sizeof(RAWINPUT));
-					*result = 0;
-					return true;
-				}
-				BYTE lpb[sizeof(RAWINPUT)];
-				if (GetRawInputData((HRAWINPUT)msg->lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize)
-				{
-					const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(lpb);
+					const RAWINPUT* raw = reinterpret_cast<const RAWINPUT*>(lpb.data());
 
 					// Dispatch to RawInputSource for per-device tracking.
 					InputSource* raw_source = InputManager::GetInputSourceInterface(InputSourceType::RawInput);
