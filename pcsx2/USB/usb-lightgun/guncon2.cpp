@@ -219,6 +219,7 @@ namespace usb_lightgun
 		// Force trigger down, send stored position during delay frames, then send (0,0)
 		// for duration frames. Uses g_FrameCount — aligned to game V-blank.
 		bool calib_active = false;   // true = currently in calibration sequence
+		bool vc_dark_inject_done = false; // true = this gun completed a calibration shot (gates settle counter)
 		u32 calib_start = 0;   // g_FrameCount at trigger press
 		u32 snap_frame = UINT32_MAX;       // Frame where snap position persists (UINT32_MAX = inactive)
 		u32 vc_boot_frame = 0;             // Frame at init — lockout SET_PARAM/trigger for 15s (Auto only)
@@ -307,11 +308,7 @@ namespace usb_lightgun
 			us->AutoConfigure();
 			us->auto_config_done = true;
 			if (us->lock_btn == CalibDoneBtn::Auto)
-			{
 				us->vc_boot_frame = g_FrameCount;
-				Console.WriteLn("(GunCon2) DIAG Port %u: vc_boot_frame=%u lockout_until=%u",
-					us->port, us->vc_boot_frame, us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT);
-			}
 		}
 
 		if (usb_desc_handle_control(dev, p, request, value, index, length, data) >= 0)
@@ -344,17 +341,9 @@ namespace usb_lightgun
 				if (g_FrameCount >= us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT)
 				{
 					if (!us->calib_set_param)
-					{
 						us->calib_set_param = true;
-						Console.WriteLn("(GunCon2) DIAG Port %u: calib_set_param=true [frame=%u]", us->port, g_FrameCount);
-					}
 					if (us->enable_calib && !us->calib_locked)
 						us->vc_poll_count = 0;
-				}
-				else
-				{
-					Console.WriteLn("(GunCon2) DIAG Port %u: SET_PARAM BLOCKED by lockout [frame=%u < %u]",
-						us->port, g_FrameCount, us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT);
 				}
 			}
 			else if (us->lock_btn != CalibDoneBtn::None)
@@ -416,6 +405,7 @@ namespace usb_lightgun
 						us->enable_calib = false;
 						us->calib_active = false;
 						us->dark_inject_active = false;
+						us->vc_dark_inject_done = false;
 						us->snap_frame = UINT32_MAX;
 						us->vc_poll_count = 0;
 						Console.WriteLn("(GunCon2) Port %u: recalibrate — calibration reset", us->port);
@@ -436,8 +426,6 @@ namespace usb_lightgun
 						&& (us->lock_btn != CalibDoneBtn::Auto || g_FrameCount >= us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT))
 					{
 						us->enable_calib = true;
-						Console.WriteLn("(GunCon2) DIAG Port %u: enable_calib=true [frame=%u lockout_end=%u]",
-							us->port, g_FrameCount, us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT);
 						Console.WriteLn("(GunCon2) Port %u: first trigger — params (%d,%d)",
 							us->port, us->param_x, us->param_y);
 					}
@@ -509,6 +497,7 @@ namespace usb_lightgun
 									// Done — start snap: persist stored position for
 									// the entire frame so SDK captures it at V-blank.
 									us->calib_active = false;
+									us->vc_dark_inject_done = true;
 									us->snap_frame = g_FrameCount;
 									out.pos_x = us->calib_pos_x;
 									out.pos_y = us->calib_pos_y;
@@ -532,13 +521,12 @@ namespace usb_lightgun
 					}
 
 					// CalibDoneBtn::Auto settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
-					// Counter resets on every SET_PARAM. Requires calib_set_param to prevent
-					// premature lock if enable_calib is set during boot (mashing trigger).
+					// Counter resets on every SET_PARAM. Requires calib_set_param and
+					// vc_dark_inject_done to prevent premature lock on guns that haven't
+					// completed a calibration shot yet (multi-gun: gun 2 waits while gun 1 calibrates).
 					if (us->lock_btn == CalibDoneBtn::Auto &&
-						us->enable_calib && us->calib_set_param && !us->calib_locked)
+						us->enable_calib && us->calib_set_param && us->vc_dark_inject_done && !us->calib_locked)
 					{
-						if (us->vc_poll_count == 0)
-							Console.WriteLn("(GunCon2) DIAG Port %u: settle counter STARTED [frame=%u]", us->port, g_FrameCount);
 						if (++us->vc_poll_count >= GUNCON2_VC_SETTLE_POLLS)
 						{
 							us->calib_locked = true;
