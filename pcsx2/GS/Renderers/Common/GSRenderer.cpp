@@ -4,6 +4,7 @@
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiManager.h"
 #include "GS/Renderers/Common/GSRenderer.h"
+#include "USB/usb-lightgun/guncon2.h"
 #include "GS/GSCapture.h"
 #include "GS/GSDump.h"
 #include "GS/GSGL.h"
@@ -18,6 +19,7 @@
 #include "common/FileSystem.h"
 #include "common/Image.h"
 #include "common/Path.h"
+#include "common/Console.h"
 #include "common/StringUtil.h"
 #include "common/Timer.h"
 
@@ -67,12 +69,86 @@ void GSRenderer::Reset(bool hardware_reset)
 	if (hardware_reset)
 		g_gs_device->ClearCurrent();
 
+	ResetPhotodiode();
 	GSState::Reset(hardware_reset);
 }
 
 void GSRenderer::Destroy()
 {
+	for (auto& dl : m_photodiode_ring)
+		dl.reset();
 	GSCapture::EndCapture();
+}
+
+void GSRenderer::ResetPhotodiode()
+{
+	// Invalidate ring buffer pipeline — forces 2 fresh frames before next readback.
+	// Download textures are kept alive (valid as long as the GPU device exists).
+	m_photodiode_frame = 0;
+}
+
+void GSRenderer::UpdatePhotodiode()
+{
+	if (!g_gs_device)
+		return;
+
+	GSTexture* current = g_gs_device->GetCurrent();
+
+	if (current)
+	{
+		const u32 write_idx = m_photodiode_frame % PHOTODIODE_RING_SIZE;
+		const u32 read_idx = (m_photodiode_frame + 1) % PHOTODIODE_RING_SIZE;
+
+		// Lazy-create download texture for this ring slot.
+		if (!m_photodiode_ring[write_idx])
+		{
+			m_photodiode_ring[write_idx] = g_gs_device->CreateDownloadTexture(1, 1, GSTexture::Format::Color);
+		}
+
+		// Copy center pixel of merged PCRTC output into ring slot.
+		if (m_photodiode_ring[write_idx])
+		{
+			const int cx = current->GetWidth() / 2;
+			const int cy = current->GetHeight() / 2;
+			m_photodiode_ring[write_idx]->CopyFromTexture(
+				GSVector4i(0, 0, 1, 1), current,
+				GSVector4i(cx, cy, cx + 1, cy + 1), 0);
+		}
+
+		// Read back the slot written 2 frames ago (async — no GPU stall).
+		if (m_photodiode_frame >= 2 && m_photodiode_ring[read_idx])
+		{
+			m_photodiode_ring[read_idx]->Flush();
+
+			const GSVector4i rc(0, 0, 1, 1);
+			if (m_photodiode_ring[read_idx]->Map(rc))
+			{
+				const u32 px = *reinterpret_cast<const u32*>(m_photodiode_ring[read_idx]->GetMapPointer());
+				const u32 lum = (px & 0xFFu) + ((px >> 8) & 0xFFu) + ((px >> 16) & 0xFFu);
+				const bool was_dark = g_guncon2_display_dark.load(std::memory_order_acquire);
+
+				// Hysteresis: two thresholds to prevent oscillation during fades.
+				//   bright->dark : lum <  PHOTODIODE_DARK_ENTRY (fast entry for calibration blanks)
+				//   dark->bright : lum >  PHOTODIODE_DARK_EXIT  (hold dark through transition frames)
+				//   between      : hold current state
+				bool set_dark;
+				if (was_dark)
+					set_dark = (lum <= PHOTODIODE_DARK_EXIT);
+				else
+					set_dark = (lum < PHOTODIODE_DARK_ENTRY);
+
+				g_guncon2_display_dark.store(set_dark, std::memory_order_release);
+				m_photodiode_ring[read_idx]->Unmap();
+			}
+		}
+
+		m_photodiode_frame++;
+	}
+	else
+	{
+		// GetCurrent() returned null on a frame where Merge() ran.
+		// This can happen during PCRTC mode switches. Dark flag is unchanged.
+	}
 }
 
 void GSRenderer::UpdateRenderFixes()
@@ -87,8 +163,18 @@ bool GSRenderer::Merge(int field)
 	int y_offset[3] = { 0, 0, 0 };
 	const bool feedback_merge = m_regs->EXTWRITE.WRITE == 1;
 
+	// GunCon2 photodiode: detect screen darkness via pixel sampling below.
+	const bool gun_active = g_guncon2_count.load(std::memory_order_relaxed) > 0;
+
 	if (!PCRTCDisplays.PCRTCDisplays[0].enabled && !PCRTCDisplays.PCRTCDisplays[1].enabled)
 	{
+		// PATH1: PCRTC completely disabled — dark immediately.
+		if (gun_active)
+		{
+			if (!g_guncon2_display_dark.load(std::memory_order_acquire))
+				ResetPhotodiode();
+			g_guncon2_display_dark.store(true, std::memory_order_release);
+		}
 		m_real_size = GSVector2i(0, 0);
 		return false;
 	}
@@ -137,6 +223,16 @@ bool GSRenderer::Merge(int field)
 	if (!tex[0] && !tex[1])
 	{
 		m_real_size = GSVector2i(0, 0);
+
+		// PATH2: PCRTC enabled but GetOutput()=null — screen is blank.
+		// No texture = no light = photodiode sees dark. Set immediately.
+		// When PATH3 resumes, the ring pipeline starts fresh (ResetPhotodiode).
+		if (gun_active)
+		{
+			if (!g_guncon2_display_dark.load(std::memory_order_acquire))
+				ResetPhotodiode();
+			g_guncon2_display_dark.store(true, std::memory_order_release);
+		}
 
 		// Clear out the MAD buffer as some remnants of the previously shown frame came be left over, causing a flash for one frame.
 		if (GSConfig.InterlaceMode == GSInterlaceMode::Automatic || GSConfig.InterlaceMode >= GSInterlaceMode::AdaptiveTFF)
@@ -237,6 +333,10 @@ bool GSRenderer::Merge(int field)
 
 	const u32 c = (m_regs->BGCOLOR.U32[0] & 0x00FFFFFFu) | (m_regs->PMODE.ALP << 24);
 	g_gs_device->Merge(tex, src_gs_read, dst, fs, m_regs->PMODE, m_regs->EXTBUF, c);
+
+	// GunCon2 photodiode: sample center pixel to detect calibration blanks.
+	if (gun_active)
+		UpdatePhotodiode();
 
 	if (isReallyInterlaced() && GSConfig.InterlaceMode != GSInterlaceMode::Off)
 	{

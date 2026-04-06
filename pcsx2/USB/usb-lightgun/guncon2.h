@@ -3,6 +3,13 @@
 
 #pragma once
 #include "USB/deviceproxy.h"
+#include <atomic>
+
+// GunCon2 photodiode state — shared between GSRenderer (writer) and guncon2 (reader).
+// Written by the GS thread, read by the EE/IOP thread.
+extern std::atomic<bool> g_guncon2_display_dark;
+extern std::atomic<int>  g_guncon2_count;
+
 
 namespace usb_lightgun
 {

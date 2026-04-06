@@ -6,6 +6,7 @@
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiManager.h"
 #include "GS/GS.h"
+#include "USB/usb-lightgun/guncon2.h"
 #include "GS/GSCapture.h"
 #include "GS/GSExtra.h"
 #include "GS/GSGL.h"
@@ -55,6 +56,9 @@
 #include <fstream>
 
 Pcsx2Config::GSOptions GSConfig;
+
+std::atomic<bool> g_guncon2_display_dark{false};
+std::atomic<int> g_guncon2_count{0};
 
 static GSRendererType GSCurrentRenderer;
 

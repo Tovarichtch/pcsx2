@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
+#include "Counters.h"
 #include "GS/GS.h"
 #include "Host.h"
 #include "IconsPromptFont.h"
@@ -17,6 +18,8 @@
 #include "common/Console.h"
 #include "common/StringUtil.h"
 
+#include "fmt/format.h"
+
 #include <tuple>
 
 namespace usb_lightgun
@@ -24,9 +27,6 @@ namespace usb_lightgun
 	enum : u32
 	{
 		GUNCON2_FLAG_PROGRESSIVE = 0x0100,
-
-		GUNCON2_CALIBRATION_DELAY = 12,
-		GUNCON2_CALIBRATION_REPORT_DELAY = 5,
 	};
 
 	enum : u32
@@ -49,6 +49,15 @@ namespace usb_lightgun
 		BID_RELATIVE_DOWN = 21,
 	};
 
+	// Button the player presses to confirm calibration is done.
+	enum class CalibDoneBtn : u8
+	{
+		None     = 0, // No button lock — game locked at boot (GF2)
+		AB       = 1, // A or B on GunCon2 (Namco, DCOX, GC2)
+		Start    = 2, // START on GunCon2 (Capcom DS, GS, REDA)
+		Auto     = 3, // Auto-lock after SET_PARAM silence (VC — no button needed)
+	};
+
 	// Right pain in the arse. Different games seem to have different scales..
 	// Not worth putting these in the gamedb for such few games.
 	// Values are from the old nuvee plugin.
@@ -58,40 +67,66 @@ namespace usb_lightgun
 		float scale_x, scale_y;
 		u32 center_x, center_y;
 		u32 screen_width, screen_height;
+		CalibDoneBtn lock_btn; // Button that locks calibration (NONE = GF2 locked at boot).
+		u32 dark_delay;    // V-sync frames before dark (both inject_calib_only and VC). 0=use photodiode.
+		u32 dark_duration; // V-sync frames of dark. 0=use photodiode.
+		bool inject_calib_only;    // true = V-sync dark inject for calibration. false = vanilla photodiode.
 	};
 
 	static constexpr const GameConfig s_game_config[] = {
-		{"SLES-50930", 90.25f, 94.5f, 390, 132, 640, 256}, // Dino Stalker (E, English)
-		{"SLES-51095", 90.25f, 94.5f, 390, 132, 640, 256}, // Dino Stalker (E, French)
-		{"SLES-51096", 90.25f, 94.5f, 390, 132, 640, 256}, // Dino Stalker (E, German)
-		{"SLUS-20485", 90.25f, 92.5f, 390, 132, 640, 240}, // Dino Stalker (U)
-		{"SLUS-20389", 89.25f, 93.5f, 422, 141, 640, 240}, // Endgame (U)
-		{"SLES-50936", 112.0f, 100.0f, 320, 120, 512, 256}, // Endgame (E) (Guncon2 needs to be connected to USB port 2)
-		{"SLPM-65139", 90.0f, 91.5f, 320, 120, 640, 240}, // Gun Survivor 3: Dino Crisis (J)
-		{"SLES-52620", 89.5f, 112.3f, 390, 147, 640, 256}, // Guncom 2 (E)
-		{"SLES-51289", 84.5f, 89.0f, 456, 164, 640, 256}, // Gunfighter 2 - Jesse James (E)
-		{"SLPS-25165", 90.25f, 98.0f, 390, 138, 640, 240}, // Gunvari Collection (J) (480i)
-		// {"SLPS-25165", 86.75f, 96.0f, 454, 164, 640, 256}, // Gunvari Collection (J) (480p)
-		{"SCES-50889", 90.25f, 94.5f, 390, 169, 640, 256}, // Ninja Assault (E)
-		{"SLPS-20218", 90.0f, 92.0f, 320, 134, 640, 240}, // Ninja Assault (J)
-		{"SLUS-20492", 90.25f, 92.5f, 390, 132, 640, 240}, // Ninja Assault (U)
-		{"SLES-50650", 84.75f, 96.0f, 454, 164, 640, 240}, // Resident Evil Survivor 2 (E)
-		{"SLES-51448", 90.25f, 95.0f, 420, 132, 640, 240}, // Resident Evil - Dead Aim (E)
-		{"SLUS-20669", 90.25f, 93.5f, 420, 132, 640, 240}, // Resident Evil - Dead Aim (U)
-		{"SLUS-20619", 90.25f, 91.75f, 453, 154, 640, 256}, // Starsky & Hutch (U)
-		{"SCES-50300", 90.25f, 102.75f, 390, 138, 640, 256}, // Time Crisis II (E)
-		{"SLUS-20219", 90.25f, 97.5f, 390, 154, 640, 240}, // Time Crisis 2 (U)
-		{"SCES-51844", 90.25f, 102.75f, 390, 138, 640, 256}, // Time Crisis 3 (E)
-		{"SLUS-20645", 90.25f, 97.5f, 390, 154, 640, 240}, // Time Crisis 3 (U)
-		{"SCES-52530", 90.25f, 99.0f, 390, 153, 640, 256}, // Crisis Zone (E)
-		{"SLUS-20927", 90.25f, 99.0f, 390, 153, 640, 240}, // Time Crisis - Crisis Zone (U) (480i)
-		// {"SLUS-20927", 94.5f, 104.75f, 423, 407, 768, 768}, // Time Crisis - Crisis Zone (U) (480p)
-		{"SCES-50411", 89.8f, 99.9f, 421, 138, 640, 256}, // Vampire Night (E)
-		{"SLPS-25077", 90.0f, 97.5f, 422, 118, 640, 240}, // Vampire Night (J)
-		{"SLUS-20221", 89.8f, 102.5f, 422, 124, 640, 228}, // Vampire Night (U)
-		{"SLES-51229", 110.15f, 100.0f, 433, 159, 512, 256}, // Virtua Cop - Elite Edition (E,J) (480i)
-		// {"SLES-51229", 85.75f, 92.0f, 456, 164, 640, 256}, // Virtua Cop - Elite Edition (E,J) (480p)
+		// ELF-based calibration: cx/cy from addiu opcodes, W/H from slti thresholds.
+		// screen_height = ELF height / 2 (interlaced half-field).
+		// scale_x/scale_y calibrated empirically per game.
+		// dark_delay/dark_duration: V-sync frames. inject_calib_only=true → calibration dark inject. inject_calib_only=false → vanilla photodiode.
+		// inject_calib_only: true = calibration only, false = every shot (Sega VC).
+		// lock_btn: AB/START/OFF/NONE — button that confirms calibration is done.
+		//                                       sx       sy     cx   cy    w    h   done_btn       dly dur  f1
+		{"SLPM-62401",  89.75f, 113.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Death Crimson OX+ (J) NTSC vanilla
+		{"SLES-50930",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, En) PAL Capcom vanilla
+		{"SLES-51095",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, Fr) PAL Capcom vanilla
+		{"SLES-51096",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, De) PAL Capcom vanilla
+		{"SLUS-20485",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (U) NTSC Capcom vanilla
+		{"SLUS-20389",  89.25f,  93.5f,  422, 134, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Endgame (U) NTSC (untested)
+		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, CalibDoneBtn::AB,     3, 1, true},  // Endgame (E) PAL (untested)
+		{"SLPM-65060", 100.0f,  101.0f,  422, 134, 640, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 2 (J) NTSC Capcom vanilla (dark inject pollutes SDK accum)
+		{"SLPM-65139", 100.0f,  100.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (J) NTSC Capcom vanilla
+		{"SLPM-67529", 100.0f,  100.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (KR) NTSC Capcom vanilla
+		{"SLPM-65245", 100.0f,  101.25f, 422, 134, 640, 224, CalibDoneBtn::Start,  3, 1, true},  // Gun Survivor 4 (J) NTSC Capcom
+		{"SLES-52620",  89.75f, 112.0f,  422, 148, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Guncom 2 (E) PAL vanilla
+		{"SLES-51289", 105.0f,   88.0f,  422, 164, 512, 256, CalibDoneBtn::None,   3, 1, true},  // Gunfighter II (E) PAL — locked at boot, no calibration flow
+		{"SLPS-25165",  90.0f,  105.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Gunvari Collection (J) NTSC Namco
+		{"SCES-50889",  90.0f,   97.5f,  422, 169, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (E) PAL Namco
+		{"SLPS-20218",  90.0f,   92.0f,  422, 134, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (J) NTSC Namco
+		{"SCPS-56015",  90.0f,   92.0f,  422, 134, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (KR) NTSC Namco
+		{"SLUS-20492",  90.0f,   92.0f,  422, 134, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Ninja Assault (U) NTSC Namco
+		{"SLES-51448",  90.25f, 108.0f,  422, 134, 640, 225, CalibDoneBtn::Start,  3, 1, true},  // RE Dead Aim (E) PAL
+		{"SLUS-20669",  90.5f,  114.0f,  422, 134, 640, 240, CalibDoneBtn::Start,  3, 1, true},  // RE Dead Aim (U) NTSC
+		{"SLES-50650", 100.0f,  100.0f,  422, 134, 640, 224, CalibDoneBtn::Start,  0, 0, false}, // RE Survivor 2 (E) PAL Capcom vanilla (dark inject pollutes SDK accum)
+		{"SLES-51617",  90.0f,   82.5f,  422, 134, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, En) PAL — grey screen calibration, no photodiode sensor
+		{"SLES-51783",  90.0f,   82.5f,  422, 134, 640, 256, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (E, Fr/De) PAL — grey screen calibration, no photodiode sensor
+		{"SLKA-25090",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (KR) NTSC — grey screen calibration, no photodiode sensor
+		{"SLUS-20619",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     0, 0, false}, // Starsky & Hutch (U) NTSC — grey screen calibration, no photodiode sensor
+		{"SCES-50300",  90.0f,  103.0f,  437, 164, 640, 256, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (E) PAL Namco dist_8101
+		{"SLPS-20122",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (J) NTSC Namco dist_8101
+		{"SCKA-20002",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (KR) NTSC Namco dist_8101
+		{"SLUS-20219",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis II (U) NTSC Namco dist_8101
+		{"SCAJ-20060",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (Asia) NTSC Namco dist_8101
+		{"SCES-51844",  90.0f,  103.0f,  437, 164, 640, 256, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (E) PAL Namco dist_8101
+		{"SLPS-25290",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (J) NTSC Namco dist_8101
+		{"SCKA-20015",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (KR) NTSC Namco dist_8101
+		{"SLUS-20645",  89.75f, 104.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Time Crisis 3 (U) NTSC Namco dist_8101
+		{"SCES-52530",  90.0f,  103.0f,  422, 153, 640, 256, CalibDoneBtn::AB,     3, 1, true},  // Crisis Zone (E) PAL Namco
+		{"SCKA-20038",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Crisis Zone (KR) NTSC Namco
+		{"SLUS-20927",  90.0f,  104.5f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Crisis Zone (U) NTSC Namco VERIFIED
+		{"SCES-50411",  89.75f, 115.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Vampire Night (E) PAL Namco
+		{"SLPS-25077",  89.75f, 105.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Vampire Night (J) NTSC Namco
+		{"SLUS-20221",  89.75f, 105.0f,  422, 134, 640, 224, CalibDoneBtn::AB,     3, 1, true},  // Vampire Night (U) NTSC Namco
+		{"SLES-51229", 111.0f,  100.0f,  424, 134, 512, 256, CalibDoneBtn::Auto,      3,     3, true},  // Virtua Cop Elite Edition (E) PAL Sega (3f delay + 3f dark)
+		{"SLPM-62205",  89.75f, 104.5f,  422, 134, 640, 224, CalibDoneBtn::Auto,      4,     3, true},  // Virtua Cop Re-Birth (J) NTSC Sega (4f delay + 3f dark)
 	};
+
+	static constexpr u32 GUNCON2_VC_SETTLE_POLLS = 750; // ~6s at ~125Hz USB — SET_PARAM silence = calibration done
+	static constexpr float GUNCON2_OFFSCREEN_BORDER = 0.015f; // 1.5% edge = offscreen
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
 	static constexpr s32 DEFAULT_SCREEN_HEIGHT = 240;
@@ -118,6 +153,7 @@ namespace usb_lightgun
 	struct GunCon2State
 	{
 		explicit GunCon2State(u32 port_);
+		~GunCon2State(); // Resets g_guncon2_display_dark when last instance destroyed.
 
 		USBDevice dev{};
 		USBDesc desc{};
@@ -141,6 +177,7 @@ namespace usb_lightgun
 		// Host State (Not Saved)
 		//////////////////////////////////////////////////////////////////////////
 		u32 button_state = 0;
+		u32 pointer_index = 0; // which pointer device to read position from
 		std::string cursor_path;
 		float cursor_scale = 1.0f;
 		u32 cursor_color = 0xFFFFFFFF;
@@ -153,9 +190,35 @@ namespace usb_lightgun
 		s16 param_y = 0;
 		u16 param_mode = 0;
 
-		u16 calibration_timer = 0;
-		s16 calibration_pos_x = 0;
-		s16 calibration_pos_y = 0;
+		s16 calib_pos_x = 0;
+		s16 calib_pos_y = 0;
+
+		// Calibration lock: dark_inject runs on every trigger until locked.
+		// Lock triggered by lock_btn press after game has responded to calibration.
+		// enable_calib: set on first trigger press (gates boot-time SET_PARAMs).
+		// calib_set_param: set when SET_PARAM received while enable_calib=true.
+		// Lock condition: enable_calib && calib_set_param && done_button pressed.
+		bool calib_locked = false;
+		CalibDoneBtn lock_btn = CalibDoneBtn::None;
+		bool enable_calib = false;    // true = calibration flow enabled (player has fired at least once).
+		bool calib_set_param = false;  // Game sent SET_PARAM after enable_calib.
+		u32 vc_poll_count = 0;    // Polls since last SET_PARAM (CalibDoneBtn::Auto only — VC settle).
+
+		// Trigger-delayed dark injection: replaces photodiode for games with configured dark_delay.
+		// Real GunCon2 on CRT: photodiode detects dark within the same vsync.
+		// Our ring buffer: dark arrives ~13 polls later (too late for CZ, latency for VC).
+		// inject_calib_only=true: V-sync frame-aligned dark inject via g_FrameCount, calibration only.
+		bool dark_inject_active = false; // Edge detect: only inject once per trigger press.
+		u32 dark_delay = 0;    // V-sync frames before dark. 0 = use vanilla photodiode.
+		u32 dark_duration = 0; // V-sync frames of dark. Set from GameConfig.
+		bool inject_calib_only = false; // true = V-sync dark inject for calibration. false = vanilla photodiode.
+
+		// inject_calib_only calibration: V-sync aligned mechanism triggered by first trigger.
+		// Force trigger down, send stored position during delay frames, then send (0,0)
+		// for duration frames. Uses g_FrameCount — aligned to game V-blank.
+		bool calib_active = false;   // true = currently in calibration sequence
+		u32 calib_start = 0;   // g_FrameCount at trigger press
+		u32 snap_frame = UINT32_MAX;       // Frame where snap position persists (UINT32_MAX = inactive)
 
 		bool auto_config_done = false;
 
@@ -233,24 +296,58 @@ namespace usb_lightgun
 	{
 		GunCon2State* const us = USB_CONTAINER_OF(dev, GunCon2State, dev);
 
-		// Apply configuration on the first control packet.
-		// The ELF should be well and truely loaded by then.
-		if (!us->auto_config_done && !us->custom_config)
+		// Apply per-game configuration on the first control packet.
+		// Note: custom_config guard removed — AutoConfigure() handles it internally
+		// (skips position values when custom_config=true, always applies feature flags).
+		if (!us->auto_config_done)
 		{
 			us->AutoConfigure();
 			us->auto_config_done = true;
 		}
 
-		DevCon.WriteLn("guncon2: req %04X val: %04X idx: %04X len: %d\n", request, value, index, length);
 		if (usb_desc_handle_control(dev, p, request, value, index, length, data) >= 0)
 			return;
 
 		if (request == (ClassInterfaceOutRequest | 0x09))
 		{
+			const s16 old_px = us->param_x;
+			const s16 old_py = us->param_y;
+			const u16 old_mode = us->param_mode;
 			us->param_x = static_cast<u16>(data[0]) | (static_cast<u16>(data[1]) << 8);
 			us->param_y = static_cast<u16>(data[2]) | (static_cast<u16>(data[3]) << 8);
 			us->param_mode = static_cast<u16>(data[4]) | (static_cast<u16>(data[5]) << 8);
-			DevCon.WriteLn("GunCon2 Set Param %04X %d %d", us->param_mode, us->param_x, us->param_y);
+			// Log SET_PARAM during calibration only — skip after lock to avoid log spam.
+			if (!us->calib_locked)
+				Console.WriteLn("(GunCon2) Port %u SET_PARAM mode=0x%04X param_x=%d param_y=%d (was mode=0x%04X x=%d y=%d)",
+				us->port, us->param_mode, us->param_x, us->param_y,
+				old_mode, old_px, old_py);
+
+			// Calibration lock logic in SET_PARAM:
+			// - Button-based (lock_btn != NONE/AUTO): mark calib_set_param.
+			//   Lock happens in poll handler when the done button is pressed.
+			// - CalibDoneBtn::Auto (VC): reset settle counter on every SET_PARAM.
+			//   Lock happens after 750 polls (~6s) of SET_PARAM silence.
+			// - CalibDoneBtn::None (GF2): already locked at boot, ignore all SET_PARAMs.
+			if (us->lock_btn == CalibDoneBtn::Auto)
+			{
+				// Any SET_PARAM resets the settle counter — player is still calibrating.
+				if (us->enable_calib && !us->calib_locked)
+					us->vc_poll_count = 0;
+			}
+			else if (us->lock_btn != CalibDoneBtn::None)
+			{
+				// Button-based games: mark that the game responded to calibration.
+				if (us->enable_calib && !us->calib_locked)
+				{
+					if (!us->calib_set_param)
+					{
+						us->calib_set_param = true;
+						Console.WriteLn("(GunCon2) Port %u: game responded to calibration (param: %d,%d) — waiting for done button",
+							us->port, us->param_x, us->param_y);
+					}
+				}
+			}
+
 			return;
 		}
 
@@ -269,44 +366,181 @@ namespace usb_lightgun
 				{
 					const auto [pos_x, pos_y] = us->CalculatePosition();
 
-					// Time Crisis games do a "calibration" by displaying a black frame for a single frame,
-					// waiting for the gun to report (0, 0), and then computing an offset on the first non-zero
-					// value. So, after the trigger is pulled, we wait for a few frames, then send the (0, 0)
-					// report, then go back to normal values. To reduce error if the mouse is moving during
-					// these frames (unlikely), we store the fire position and keep returning that.
-					if (us->button_state & (1u << BID_RECALIBRATE) && us->calibration_timer == 0)
-					{
-						us->calibration_timer = GUNCON2_CALIBRATION_DELAY;
-						us->calibration_pos_x = pos_x;
-						us->calibration_pos_y = pos_y;
-					}
+					// GunCon2 calibration: games blank the screen for a few
+					// frames, expecting the photodiode to report (0,0) when
+					// it sees no light. The game then computes aiming offsets
+					// from the first non-zero position after the blank.
+					// We detect darkness via GPU pixel sampling in Merge().
 
-					// Buttons are active low.
+					// Buttons are active low. Bit 8 (GUNCON2_FLAG_PROGRESSIVE) is left
+					// at its natural ~button_state value (always 1, since no BID maps to
+					// bit 8). This matches PCSX2 vanilla behavior and allows the game's
+					// FUNC_A progressive detection to run its normal course at boot.
+					// Photodiode simulation for step 2 brightness is deferred — step 1
+					// calibration (dark_inject timing) handles all shooting calibration.
 					GunCon2Out out;
-					out.buttons = static_cast<u16>(~us->button_state) | (us->param_mode & GUNCON2_FLAG_PROGRESSIVE);
+					out.buttons = static_cast<u16>(~us->button_state);
 					out.pos_x = pos_x;
 					out.pos_y = pos_y;
 
-					if (us->calibration_timer > 0)
+					// Recalibrate fallback: player-assigned button resets calibration lock.
+					// Useful if calibration fails or the game gets confused mid-session.
+					// Only acts when locked — no-op while calibration is already in progress.
+					if ((us->button_state & (1u << BID_RECALIBRATE)) && us->calib_locked)
 					{
-						// Force trigger down while calibrating.
-						out.buttons &= ~(1u << BID_TRIGGER);
-						out.pos_x = us->calibration_pos_x;
-						out.pos_y = us->calibration_pos_y;
-						us->calibration_timer--;
+						us->calib_locked = false;
+						us->calib_set_param = false;
+						us->enable_calib = false;
+						us->calib_active = false;
+						us->dark_inject_active = false;
+						us->snap_frame = UINT32_MAX;
+						us->vc_poll_count = 0;
+						Console.WriteLn("(GunCon2) Port %u: recalibrate — calibration reset", us->port);
+					}
 
-						if (us->calibration_timer < GUNCON2_CALIBRATION_REPORT_DELAY)
+					if (us->button_state & (1u << BID_SHOOT_OFFSCREEN))
+					{
+						out.buttons &= ~(1u << BID_TRIGGER);
+						out.pos_x = 0;
+						out.pos_y = 0;
+					}
+
+					// Track first trigger for ALL games (vanilla, inject_calib_only, VC).
+					// Required for calibration lock flow: enable_calib → calib_set_param → lock.
+					// DCOX/GC2 (vanilla) need this to enable lock and block dark in gameplay.
+					if ((us->button_state & (1u << BID_TRIGGER)) && !us->enable_calib)
+					{
+						us->enable_calib = true;
+						Console.WriteLn("(GunCon2) Port %u: first trigger — params (%d,%d)",
+							us->port, us->param_x, us->param_y);
+					}
+
+					if (us->inject_calib_only && us->dark_delay > 0)
+					{
+						// inject_calib_only calibration: V-sync aligned dark injection.
+						// On first trigger: store position and g_FrameCount.
+						// Send stored pos for dark_delay frames, then (0,0) for dark_duration frames.
+						// snap_frame: persist stored position for ALL polls of the capture frame.
+						// PAL and NTSC use same frame values — V-sync aligned.
+						// After calib_locked: do nothing — trigger = normal shot.
+						if (!us->calib_locked)
+						{
+							// Start calibration on trigger press edge
+							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calib_active && !us->dark_inject_active)
+							{
+								us->calib_active = true;
+								us->calib_start = g_FrameCount;
+								us->calib_pos_x = pos_x;
+								us->calib_pos_y = pos_y;
+								us->dark_inject_active = true;
+							}
+							// Reset edge-detect when trigger released and no calibration active,
+							// allowing a fresh dark inject on the next trigger press.
+							if (!us->calib_active && !(us->button_state & (1u << BID_TRIGGER)))
+								us->dark_inject_active = false;
+
+							// Snap: persist stored position for ALL polls of the snap frame.
+							// Without this, the SDK reads the live mouse on later polls
+							// of the same frame (last-write-wins at V-blank).
+							if (us->snap_frame != UINT32_MAX)
+							{
+								if (g_FrameCount == us->snap_frame)
+								{
+									out.pos_x = us->calib_pos_x;
+									out.pos_y = us->calib_pos_y;
+								}
+								else
+								{
+									us->snap_frame = UINT32_MAX; // next frame: back to live mouse
+								}
+							}
+
+							if (us->calib_active)
+							{
+								// Force trigger down during calibration sequence
+								out.buttons &= ~(1u << BID_TRIGGER);
+
+								const u32 elapsed_frames = g_FrameCount - us->calib_start;
+								const u32 dark_end = us->dark_delay + us->dark_duration;
+
+								if (elapsed_frames < us->dark_delay)
+								{
+									// Delay phase: send stored position (game accumulates)
+									out.pos_x = us->calib_pos_x;
+									out.pos_y = us->calib_pos_y;
+								}
+								else if (elapsed_frames < dark_end)
+								{
+									// Dark phase: send (0,0) — aligned to V-blank
+									out.pos_x = 0;
+									out.pos_y = 0;
+								}
+								else
+								{
+									// Done — start snap: persist stored position for
+									// the entire frame so SDK captures it at V-blank.
+									us->calib_active = false;
+									us->snap_frame = g_FrameCount;
+									out.pos_x = us->calib_pos_x;
+									out.pos_y = us->calib_pos_y;
+								}
+							}
+						}
+						// After calib_locked: trigger = normal. No dark, no forced trigger.
+					}
+					else
+					{
+						// Standard photodiode for games without dark_inject (NA, TC2, etc).
+						// Before calibration lock: dark → pos=(0,0) for calibration to work.
+						// After calibration lock: dark BLOCKED — prevents false darks.
+						// dark is declared here (not above) since inject_calib_only branch never uses it.
+						const bool dark = g_guncon2_display_dark.load(std::memory_order_acquire);
+						if (dark && !us->calib_locked)
 						{
 							out.pos_x = 0;
 							out.pos_y = 0;
 						}
 					}
-					else if (us->button_state & (1u << BID_SHOOT_OFFSCREEN))
+
+					// CalibDoneBtn::Auto settle (VC): lock after 750 polls (~6s) of SET_PARAM silence.
+					// Counter resets on every SET_PARAM. Counts from first trigger press.
+					if (us->lock_btn == CalibDoneBtn::Auto &&
+						us->enable_calib && !us->calib_locked)
 					{
-						// Offscreen shot - use 0,0.
-						out.buttons &= ~(1u << BID_TRIGGER);
-						out.pos_x = 0;
-						out.pos_y = 0;
+						if (++us->vc_poll_count >= GUNCON2_VC_SETTLE_POLLS)
+						{
+							us->calib_locked = true;
+							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [auto, %u polls]",
+								us->port, us->vc_poll_count);
+						}
+					}
+
+					// Button-based lock: player presses done button after game responded.
+					// enable_calib: player has fired at least once.
+					// calib_set_param: game sent SET_PARAM after trigger (calibration happened).
+					// Both conditions prevent premature lock (boot buttons, logo skips).
+					if (us->lock_btn != CalibDoneBtn::None && us->lock_btn != CalibDoneBtn::Auto &&
+						us->enable_calib && us->calib_set_param && !us->calib_locked)
+					{
+						bool done_pressed = false;
+						switch (us->lock_btn)
+						{
+						case CalibDoneBtn::AB:
+							done_pressed = (us->button_state & ((1u << BID_A) | (1u << BID_B))) != 0;
+							break;
+						case CalibDoneBtn::Start:
+							done_pressed = (us->button_state & (1u << BID_START)) != 0;
+							break;
+						default:
+							break;
+						}
+						if (done_pressed)
+						{
+							us->calib_locked = true;
+							us->calib_active = false;
+							Console.WriteLn("(GunCon2) Port %u: calibration LOCKED [button] (param: %d,%d)",
+								us->port, us->param_x, us->param_y);
+						}
 					}
 
 					usb_packet_copy(p, &out, sizeof(out));
@@ -338,6 +572,13 @@ namespace usb_lightgun
 	GunCon2State::GunCon2State(u32 port_)
 		: port(port_)
 	{
+		g_guncon2_count.fetch_add(1, std::memory_order_relaxed);
+	}
+
+	GunCon2State::~GunCon2State()
+	{
+		if (g_guncon2_count.fetch_sub(1, std::memory_order_relaxed) == 1)
+			g_guncon2_display_dark.store(false, std::memory_order_release);
 	}
 
 	void GunCon2State::AutoConfigure()
@@ -348,34 +589,79 @@ namespace usb_lightgun
 			if (serial != gc.serial)
 				continue;
 
-			Console.WriteLn(fmt::format("(GunCon2) Using automatic config for '{}'", serial));
-			Console.WriteLn(fmt::format("  Scale: {}x{}", gc.scale_x / 100.0f, gc.scale_y / 100.0f));
-			Console.WriteLn(fmt::format("  Center Position: {}x{}", gc.center_x, gc.center_y));
-			Console.WriteLn(fmt::format("  Screen Size: {}x{}", gc.screen_width, gc.screen_height));
+			Console.WriteLn("(GunCon2) Found game config for '%s'", serial.c_str());
 
-			scale_x = gc.scale_x / 100.0f;
-			scale_y = gc.scale_y / 100.0f;
-			center_x = static_cast<float>(gc.center_x);
-			center_y = static_cast<float>(gc.center_y);
-			screen_width = gc.screen_width;
-			screen_height = gc.screen_height;
+			// Position values: only apply if NOT using custom manual config.
+			if (!custom_config)
+			{
+				Console.WriteLn("  Scale: %.4fx%.4f", gc.scale_x / 100.0f, gc.scale_y / 100.0f);
+				Console.WriteLn("  Center Position: %ux%u", gc.center_x, gc.center_y);
+				Console.WriteLn("  Screen Size: %ux%u", gc.screen_width, gc.screen_height);
+
+				scale_x = gc.scale_x / 100.0f;
+				scale_y = gc.scale_y / 100.0f;
+				center_x = static_cast<float>(gc.center_x);
+				center_y = static_cast<float>(gc.center_y);
+				screen_width = gc.screen_width;
+				screen_height = gc.screen_height;
+			}
+			else
+			{
+				Console.WriteLn("  Position values: SKIPPED (manual config active)");
+			}
+
+			// Per-game photodiode dark threshold (0 = use defaults in GSRenderer).
+
+			// CalibDoneBtn::None at boot = no calibration flow needed (GF2).
+			// Lock immediately so the game never receives dark frames.
+			if (gc.lock_btn == CalibDoneBtn::None)
+			{
+				calib_locked = true;
+				Console.WriteLn("(GunCon2) Port %u: locked at boot (CalibDoneBtn::None)", port);
+			}
+
+			// Calibration done button: which button locks dark_inject after calibration.
+			lock_btn = gc.lock_btn;
+			if (gc.lock_btn != CalibDoneBtn::None)
+			{
+				static const char* btn_names[] = {"None", "A/B", "Start", "Auto"};
+				Console.WriteLn("(GunCon2) Port %u: calibration done button = %s", port, btn_names[static_cast<u8>(gc.lock_btn)]);
+			}
+
+			// Per-game dark injection timing. Always set from GameConfig to
+			// override any stale values from PCSX2 saved settings.
+			dark_delay = gc.dark_delay;
+			dark_duration = gc.dark_duration;
+			inject_calib_only = gc.inject_calib_only;
+
+			if (gc.dark_delay > 0 || gc.dark_duration > 0)
+			{
+				Console.WriteLn("(GunCon2) Port %u: dark inject enabled (delay=%u dur=%u frames, inject_calib_only=%s)",
+					port, dark_delay, dark_duration, inject_calib_only ? "YES" : "NO");
+			}
+			else
+			{
+				Console.WriteLn("(GunCon2) Port %u: dark inject disabled (vanilla photodiode)", port);
+			}
+
 			return;
 		}
 
-		Console.Warning(fmt::format("(GunCon2) No automatic config found for '{}'.", serial));
+		Console.Warning("(GunCon2) No game config found for '%s'.", serial.c_str());
 	}
 
 	std::tuple<s16, s16> GunCon2State::CalculatePosition()
 	{
 		float pointer_x, pointer_y;
 		const auto& [window_x, window_y] =
-			(has_relative_binds) ? GetAbsolutePositionFromRelativeAxes() : InputManager::GetPointerAbsolutePosition(0);
+			(has_relative_binds) ? GetAbsolutePositionFromRelativeAxes() : InputManager::GetPointerAbsolutePosition(pointer_index);
 		GSTranslateWindowToDisplayCoordinates(window_x, window_y, &pointer_x, &pointer_y);
 
 		s16 pos_x, pos_y;
-		if (pointer_x < 0.0f || pointer_y < 0.0f)
+		if (pointer_x < GUNCON2_OFFSCREEN_BORDER || pointer_y < GUNCON2_OFFSCREEN_BORDER ||
+						pointer_x > (1.0f - GUNCON2_OFFSCREEN_BORDER) || pointer_y > (1.0f - GUNCON2_OFFSCREEN_BORDER))
 		{
-			// off-screen
+			// off-screen: outside draw rect (-1.0) or within 2% border of game display edge
 			pos_x = 0;
 			pos_y = 0;
 		}
@@ -415,6 +701,9 @@ namespace usb_lightgun
 
 	std::pair<float, float> GunCon2State::GetAbsolutePositionFromRelativeAxes() const
 	{
+		// Relative mode is used with joysticks or gamepad-mode lightguns — not RawInput.
+		// In this mode all GunCon2 instances share the same relative_pos[] state,
+		// so pointer_index is intentionally not used here.
 		const float screen_rel_x = (((relative_pos[1] > 0.0f) ? relative_pos[1] : -relative_pos[0]) + 1.0f) * 0.5f;
 		const float screen_rel_y = (((relative_pos[3] > 0.0f) ? relative_pos[3] : -relative_pos[2]) + 1.0f) * 0.5f;
 		return std::make_pair(
@@ -423,7 +712,7 @@ namespace usb_lightgun
 
 	u32 GunCon2State::GetSoftwarePointerIndex() const
 	{
-		return has_relative_binds ? (InputManager::MAX_POINTER_DEVICES + port) : 0;
+		return has_relative_binds ? (InputManager::MAX_POINTER_DEVICES + pointer_index) : pointer_index;
 	}
 
 	void GunCon2State::UpdateSoftwarePointerPosition()
@@ -498,7 +787,27 @@ namespace usb_lightgun
 		}
 
 		// Pointer settings.
-		const std::string pointer_binding = USB::GetConfigString(si, s->port, TypeName(), "Pointer", "");
+		// "Pointer" was the ini key in older builds — silently migrate to "pointer_source".
+		std::string pointer_source = USB::GetConfigString(si, s->port, TypeName(), "pointer_source", "");
+		if (pointer_source.empty())
+			pointer_source = USB::GetConfigString(si, s->port, TypeName(), "Pointer", "Auto");
+		if (pointer_source == "Auto" || pointer_source.empty())
+		{
+			s->pointer_index = std::min(s->port, InputManager::MAX_POINTER_DEVICES - 1u);
+			const auto devices = InputManager::EnumerateRawPointerDevices();
+			if (s->pointer_index < devices.size())
+				Console.WriteLn("(GunCon2) Port %u: Auto pointer → %s", s->port, devices[s->pointer_index].second.c_str());
+			else
+				Console.WriteLn("(GunCon2) Port %u: Auto pointer → Mouse %u (not yet detected)", s->port, s->pointer_index);
+		}
+		else
+		{
+			// pointer_source is a device path — resolve to pointer index.
+			const std::optional<u32> idx = InputManager::GetPointerIndexForRawDevice(pointer_source);
+			s->pointer_index = std::min(idx.value_or(s->port), InputManager::MAX_POINTER_DEVICES - 1u);
+			Console.WriteLn("(GunCon2) Port %u: Manual pointer → index %u", s->port, s->pointer_index);
+		}
+
 		std::string cursor_path(USB::GetConfigString(si, s->port, TypeName(), "cursor_path"));
 		const float cursor_scale = USB::GetConfigFloat(si, s->port, TypeName(), "cursor_scale", 1.0f);
 		u32 cursor_color = 0xFFFFFF;
@@ -603,9 +912,25 @@ namespace usb_lightgun
 		return bindings;
 	}
 
+	static std::vector<std::pair<std::string, std::string>> GetPointerDeviceList()
+	{
+		std::vector<std::pair<std::string, std::string>> result;
+		result.emplace_back("Auto", "Auto-detect by port order");
+
+		// Add all raw mouse devices, keyed by device_path for persistence.
+		for (const auto& [device_path, display_name] : InputManager::EnumerateRawPointerDevices())
+			result.emplace_back(device_path, display_name);
+
+		return result;
+	}
+
 	std::span<const SettingInfo> GunCon2Device::Settings(u32 subtype) const
 	{
 		static constexpr const SettingInfo info[] = {
+			{SettingInfo::Type::StringList, "pointer_source", TRANSLATE_NOOP("USB", "Pointer Device"),
+				TRANSLATE_NOOP("USB", "Selects which mouse/lightgun device controls the aiming for this port. "
+									  "'Auto' uses the USB port number (USB1=Pointer 0, USB2=Pointer 1)."),
+				"Auto", nullptr, nullptr, nullptr, nullptr, nullptr, &GetPointerDeviceList},
 			{SettingInfo::Type::Path, "cursor_path", TRANSLATE_NOOP("USB", "Cursor Path"),
 				TRANSLATE_NOOP("USB", "Sets the crosshair image that this lightgun will use. Setting a crosshair image "
 									  "will disable the system cursor."),
@@ -639,7 +964,7 @@ namespace usb_lightgun
 			{SettingInfo::Type::Integer, "screen_height", TRANSLATE_NOOP("USB", "Screen Height"),
 				TRANSLATE_NOOP("USB", "Sets the height of the simulated screen."), "240", "1", "1024", "1", TRANSLATE_NOOP("USB", "%dpx"),
 				nullptr, nullptr, 1.0f},
-		};
+			};
 		return info;
 	}
 
@@ -653,11 +978,9 @@ namespace usb_lightgun
 		sw.Do(&s->param_x);
 		sw.Do(&s->param_y);
 		sw.Do(&s->param_mode);
-		sw.Do(&s->calibration_timer);
-		sw.Do(&s->calibration_pos_x);
-		sw.Do(&s->calibration_pos_y);
+		sw.Do(&s->calib_pos_x);
+		sw.Do(&s->calib_pos_y);
 		sw.Do(&s->auto_config_done);
-
 		float scale_x = s->scale_x;
 		float scale_y = s->scale_y;
 		float center_x = s->center_x;
@@ -671,8 +994,14 @@ namespace usb_lightgun
 		sw.Do(&screen_width);
 		sw.Do(&screen_height);
 
+		// Serialized for binary layout compatibility only.
+		// Immediately reset on read to force AutoConfigure() to re-run at the next control
+		// packet, re-applying dark_delay, inject_calib_only, lock_btn from GameConfig.
+		if (sw.IsReading())
+			s->auto_config_done = false;
+
 		// Only save automatic settings to state.
-		if (sw.IsReading() && !s->custom_config && s->auto_config_done)
+		if (sw.IsReading() && !s->custom_config)
 		{
 			s->scale_x = scale_x;
 			s->scale_y = scale_y;
