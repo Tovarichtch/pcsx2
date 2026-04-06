@@ -231,6 +231,11 @@ namespace usb_lightgun
 		std::pair<float, float> GetAbsolutePositionFromRelativeAxes() const;
 		u32 GetSoftwarePointerIndex() const;
 		void UpdateSoftwarePointerPosition();
+
+		// Diagnostic: edge-detect for logging
+		bool diag_prev_trigger = false;
+		bool diag_prev_start = false;
+		bool diag_prev_dark = false;
 	};
 
 	static const USBDescStrings desc_strings = {
@@ -387,6 +392,33 @@ namespace usb_lightgun
 					out.buttons = static_cast<u16>(~us->button_state);
 					out.pos_x = pos_x;
 					out.pos_y = pos_y;
+
+					// DIAG: edge-detect logging for START, TRIGGER, photodiode
+					{
+						const bool cur_trigger = (us->button_state & (1u << BID_TRIGGER)) != 0;
+						const bool cur_start = (us->button_state & (1u << BID_START)) != 0;
+						const bool cur_dark = g_guncon2_display_dark.load(std::memory_order_acquire);
+
+						if (cur_trigger && !us->diag_prev_trigger)
+							Console.WriteLn("(GunCon2) DIAG Port %u: TRIGGER pressed  [frame=%u pos=(%u,%u) dark=%d enable=%d setparam=%d locked=%d]",
+								us->port, g_FrameCount, pos_x, pos_y, cur_dark, us->enable_calib, us->calib_set_param, us->calib_locked);
+						if (!cur_trigger && us->diag_prev_trigger)
+							Console.WriteLn("(GunCon2) DIAG Port %u: TRIGGER released [frame=%u]", us->port, g_FrameCount);
+
+						if (cur_start && !us->diag_prev_start)
+							Console.WriteLn("(GunCon2) DIAG Port %u: START pressed    [frame=%u]", us->port, g_FrameCount);
+						if (!cur_start && us->diag_prev_start)
+							Console.WriteLn("(GunCon2) DIAG Port %u: START released   [frame=%u]", us->port, g_FrameCount);
+
+						if (cur_dark && !us->diag_prev_dark)
+							Console.WriteLn("(GunCon2) DIAG Port %u: screen DARK      [frame=%u]", us->port, g_FrameCount);
+						if (!cur_dark && us->diag_prev_dark)
+							Console.WriteLn("(GunCon2) DIAG Port %u: screen BRIGHT    [frame=%u]", us->port, g_FrameCount);
+
+						us->diag_prev_trigger = cur_trigger;
+						us->diag_prev_start = cur_start;
+						us->diag_prev_dark = cur_dark;
+					}
 
 					// Recalibrate fallback: player-assigned button resets calibration lock.
 					// Useful if calibration fails or the game gets confused mid-session.
