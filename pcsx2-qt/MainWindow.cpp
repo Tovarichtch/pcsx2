@@ -59,6 +59,8 @@
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
+#include "pcsx2/Input/InputSource.h"
+#include "pcsx2/Input/RawInputSource.h"
 #include <Dbt.h>
 #endif
 
