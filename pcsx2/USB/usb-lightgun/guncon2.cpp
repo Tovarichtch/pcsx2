@@ -330,6 +330,10 @@ namespace usb_lightgun
 			// - CalibDoneBtn::None (GF2): already locked at boot, ignore all SET_PARAMs.
 			if (us->lock_btn == CalibDoneBtn::Auto)
 			{
+				// Mark that game has entered calibration mode — gates dark inject.
+				// Prevents premature dark inject if player fires before game is ready.
+				if (!us->calib_set_param)
+					us->calib_set_param = true;
 				// Any SET_PARAM resets the settle counter — player is still calibrating.
 				if (us->enable_calib && !us->calib_locked)
 					us->vc_poll_count = 0;
@@ -426,7 +430,11 @@ namespace usb_lightgun
 						if (!us->calib_locked)
 						{
 							// Start calibration on trigger press edge
-							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calib_active && !us->dark_inject_active)
+							// For CalibDoneBtn::Auto (VC): require game to have sent SET_PARAM first.
+							// Prevents dark inject from firing if player shoots during logos.
+							const bool game_ready = (us->lock_btn != CalibDoneBtn::Auto || us->calib_set_param);
+							if ((us->button_state & (1u << BID_TRIGGER)) && !us->calib_active && !us->dark_inject_active
+								&& game_ready)
 							{
 								us->calib_active = true;
 								us->calib_start = g_FrameCount;
