@@ -307,7 +307,11 @@ namespace usb_lightgun
 			us->AutoConfigure();
 			us->auto_config_done = true;
 			if (us->lock_btn == CalibDoneBtn::Auto)
+			{
 				us->vc_boot_frame = g_FrameCount;
+				Console.WriteLn("(GunCon2) DIAG Port %u: vc_boot_frame=%u lockout_until=%u",
+					us->port, us->vc_boot_frame, us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT);
+			}
 		}
 
 		if (usb_desc_handle_control(dev, p, request, value, index, length, data) >= 0)
@@ -340,9 +344,17 @@ namespace usb_lightgun
 				if (g_FrameCount >= us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT)
 				{
 					if (!us->calib_set_param)
+					{
 						us->calib_set_param = true;
+						Console.WriteLn("(GunCon2) DIAG Port %u: calib_set_param=true [frame=%u]", us->port, g_FrameCount);
+					}
 					if (us->enable_calib && !us->calib_locked)
 						us->vc_poll_count = 0;
+				}
+				else
+				{
+					Console.WriteLn("(GunCon2) DIAG Port %u: SET_PARAM BLOCKED by lockout [frame=%u < %u]",
+						us->port, g_FrameCount, us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT);
 				}
 			}
 			else if (us->lock_btn != CalibDoneBtn::None)
@@ -424,6 +436,8 @@ namespace usb_lightgun
 						&& (us->lock_btn != CalibDoneBtn::Auto || g_FrameCount >= us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT))
 					{
 						us->enable_calib = true;
+						Console.WriteLn("(GunCon2) DIAG Port %u: enable_calib=true [frame=%u lockout_end=%u]",
+							us->port, g_FrameCount, us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT);
 						Console.WriteLn("(GunCon2) Port %u: first trigger — params (%d,%d)",
 							us->port, us->param_x, us->param_y);
 					}
@@ -523,6 +537,8 @@ namespace usb_lightgun
 					if (us->lock_btn == CalibDoneBtn::Auto &&
 						us->enable_calib && us->calib_set_param && !us->calib_locked)
 					{
+						if (us->vc_poll_count == 0)
+							Console.WriteLn("(GunCon2) DIAG Port %u: settle counter STARTED [frame=%u]", us->port, g_FrameCount);
 						if (++us->vc_poll_count >= GUNCON2_VC_SETTLE_POLLS)
 						{
 							us->calib_locked = true;
