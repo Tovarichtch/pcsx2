@@ -127,6 +127,7 @@ namespace usb_lightgun
 	};
 
 	static constexpr u32 GUNCON2_VC_SETTLE_POLLS = 750; // ~6s at ~125Hz USB — SET_PARAM silence = calibration done
+	static constexpr u32 GUNCON2_VC_BOOT_LOCKOUT = 900; // ~15s at 60fps — ignore boot SET_PARAM + inputs
 	static constexpr float GUNCON2_OFFSCREEN_BORDER = 0.015f; // 1.5% edge = offscreen
 
 	static constexpr s32 DEFAULT_SCREEN_WIDTH = 640;
@@ -220,6 +221,7 @@ namespace usb_lightgun
 		bool calib_active = false;   // true = currently in calibration sequence
 		u32 calib_start = 0;   // g_FrameCount at trigger press
 		u32 snap_frame = UINT32_MAX;       // Frame where snap position persists (UINT32_MAX = inactive)
+		u32 vc_boot_frame = 0;             // Frame at init — lockout SET_PARAM/trigger for 15s (Auto only)
 
 		bool auto_config_done = false;
 
@@ -309,6 +311,8 @@ namespace usb_lightgun
 		{
 			us->AutoConfigure();
 			us->auto_config_done = true;
+			if (us->lock_btn == CalibDoneBtn::Auto)
+				us->vc_boot_frame = g_FrameCount;
 		}
 
 		if (usb_desc_handle_control(dev, p, request, value, index, length, data) >= 0)
@@ -336,13 +340,15 @@ namespace usb_lightgun
 			// - CalibDoneBtn::None (GF2): already locked at boot, ignore all SET_PARAMs.
 			if (us->lock_btn == CalibDoneBtn::Auto)
 			{
-				// Mark that game has entered calibration mode — gates dark inject.
-				// Prevents premature dark inject if player fires before game is ready.
-				if (!us->calib_set_param)
-					us->calib_set_param = true;
-				// Any SET_PARAM resets the settle counter — player is still calibrating.
-				if (us->enable_calib && !us->calib_locked)
-					us->vc_poll_count = 0;
+				// Ignore SET_PARAMs during boot lockout (~15s) — the first SET_PARAM
+				// is a pre-calibration default, not the real calibration screen.
+				if (g_FrameCount >= us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT)
+				{
+					if (!us->calib_set_param)
+						us->calib_set_param = true;
+					if (us->enable_calib && !us->calib_locked)
+						us->vc_poll_count = 0;
+				}
 			}
 			else if (us->lock_btn != CalibDoneBtn::None)
 			{
@@ -445,7 +451,9 @@ namespace usb_lightgun
 					// Track first trigger for ALL games (vanilla, inject_calib_only, VC).
 					// Required for calibration lock flow: enable_calib → calib_set_param → lock.
 					// DCOX/GC2 (vanilla) need this to enable lock and block dark in gameplay.
-					if ((us->button_state & (1u << BID_TRIGGER)) && !us->enable_calib)
+					// Auto (VC): blocked during boot lockout — prevents premature calibration.
+					if ((us->button_state & (1u << BID_TRIGGER)) && !us->enable_calib
+						&& (us->lock_btn != CalibDoneBtn::Auto || g_FrameCount >= us->vc_boot_frame + GUNCON2_VC_BOOT_LOCKOUT))
 					{
 						us->enable_calib = true;
 						Console.WriteLn("(GunCon2) Port %u: first trigger — params (%d,%d)",
