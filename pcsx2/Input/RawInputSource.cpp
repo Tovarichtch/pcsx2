@@ -574,6 +574,10 @@ std::optional<u32> RawInputSource::GetPointerIndexForDevicePath(const std::strin
 	{
 		if (mouse.device_path == device_path)
 			return mouse.pointer_index;
+		// Also match by VID+PID (stored by GetRawMouseDeviceList).
+		const std::string vidpid = ExtractVidPid(mouse.device_path);
+		if (!vidpid.empty() && vidpid == device_path)
+			return mouse.pointer_index;
 	}
 	return std::nullopt;
 }

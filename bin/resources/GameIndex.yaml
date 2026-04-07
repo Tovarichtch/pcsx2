@@ -65723,7 +65723,7 @@ SLUS-20389:
     default:
       content: |-
         // GunCon2: reduce settle timer to 2 frames
-        patch=0,EE,0010513C,word,24020002
+        patch=0,EE,00104B24,word,24020002
 SLUS-20390:
   name: "Risk - Global Domination"
   region: "NTSC-U"
