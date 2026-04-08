@@ -87,8 +87,8 @@ namespace usb_lightgun
 		{"SLES-51095",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, Fr) PAL Capcom vanilla
 		{"SLES-51096",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (E, De) PAL Capcom vanilla
 		{"SLUS-20485",  89.5f,  103.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Dino Stalker (U) NTSC Capcom vanilla
-		{"SLUS-20389",  89.25f,  93.5f,  422, 134, 640, 240, CalibDoneBtn::AB,     3, 1, true},  // Endgame (U) NTSC (untested)
-		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, CalibDoneBtn::AB,     3, 1, true},  // Endgame (E) PAL (untested)
+		{"SLUS-20389",  89.25f,  93.5f,  422, 134, 640, 240, CalibDoneBtn::None,   0, 0, false}, // Endgame (U) NTSC vanilla — no boot calibration
+		{"SLES-50936", 112.0f,  100.0f,  320, 120, 512, 256, CalibDoneBtn::None,   0, 0, false}, // Endgame (E) PAL vanilla — no boot calibration
 		{"SLPM-65060", 100.0f,  101.0f,  422, 134, 640, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 2 (J) NTSC Capcom vanilla (dark inject pollutes SDK accum)
 		{"SLPM-65139", 100.0f,  100.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (J) NTSC Capcom vanilla
 		{"SLPM-67529", 100.0f,  100.0f,  422, 134, 512, 224, CalibDoneBtn::Start,  0, 0, false}, // Gun Survivor 3 (KR) NTSC Capcom vanilla
