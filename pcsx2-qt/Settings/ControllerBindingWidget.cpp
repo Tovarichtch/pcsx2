@@ -1141,9 +1141,20 @@ void USBDeviceWidget::onBindingsClicked()
 
 void USBDeviceWidget::onSettingsClicked()
 {
-	if (!m_settings_widget)
+	// Recreate settings widget to refresh dynamic lists (e.g. pointer device dropdown).
+	const std::span<const SettingInfo> settings(USB::GetDeviceSettings(m_device_type, m_device_subtype));
+	if (settings.empty())
 		return;
 
+	if (m_settings_widget)
+	{
+		m_ui.stackedWidget->removeWidget(m_settings_widget);
+		delete m_settings_widget;
+	}
+
+	m_settings_widget = new ControllerCustomSettingsWidget(
+		settings, m_config_section, m_device_type + "_", "USB", m_dialog, m_ui.stackedWidget);
+	m_ui.stackedWidget->addWidget(m_settings_widget);
 	m_ui.stackedWidget->setCurrentWidget(m_settings_widget);
 	updateHeaderToolButtons();
 }
