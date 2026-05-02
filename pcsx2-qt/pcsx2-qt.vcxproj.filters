@@ -826,6 +826,9 @@
     <QtUi Include="Settings\ControllerBindingWidget_Guitar.ui">
       <Filter>Settings</Filter>
     </QtUi>
+    <QtUi Include="Settings\ControllerBindingWidget_GunCon1.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
     <QtUi Include="Settings\ControllerBindingWidget_Jogcon.ui">
       <Filter>Settings</Filter>
     </QtUi>

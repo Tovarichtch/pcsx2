@@ -115,6 +115,10 @@ void ControllerBindingWidget::onTypeChanged()
 	{
 		m_bindings_widget = ControllerBindingWidget_Guitar::createInstance(this);
 	}
+	else if (cinfo->type == Pad::ControllerType::GunCon1)
+	{
+		m_bindings_widget = ControllerBindingWidget_GunCon1::createInstance(this);
+	}
 	else if (cinfo->type == Pad::ControllerType::Jogcon)
 	{
 		m_bindings_widget = ControllerBindingWidget_Jogcon::createInstance(this);
@@ -920,6 +924,27 @@ QIcon ControllerBindingWidget_Guitar::getIcon() const
 ControllerBindingWidget_Base* ControllerBindingWidget_Guitar::createInstance(ControllerBindingWidget* parent)
 {
 	return new ControllerBindingWidget_Guitar(parent);
+}
+
+ControllerBindingWidget_GunCon1::ControllerBindingWidget_GunCon1(ControllerBindingWidget* parent)
+	: ControllerBindingWidget_Base(parent)
+{
+	m_ui.setupUi(this);
+	initBindingWidgets();
+}
+
+ControllerBindingWidget_GunCon1::~ControllerBindingWidget_GunCon1()
+{
+}
+
+QIcon ControllerBindingWidget_GunCon1::getIcon() const
+{
+	return QIcon::fromTheme("crosshair-line");
+}
+
+ControllerBindingWidget_Base* ControllerBindingWidget_GunCon1::createInstance(ControllerBindingWidget* parent)
+{
+	return new ControllerBindingWidget_GunCon1(parent);
 }
 
 ControllerBindingWidget_Jogcon::ControllerBindingWidget_Jogcon(ControllerBindingWidget* parent)

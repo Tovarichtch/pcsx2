@@ -6,6 +6,7 @@
 #include "SIO/Pad/Pad.h"
 #include "SIO/Pad/PadDualshock2.h"
 #include "SIO/Pad/PadGuitar.h"
+#include "SIO/Pad/PadGunCon1.h"
 #include "SIO/Pad/PadJogcon.h"
 #include "SIO/Pad/PadNegcon.h"
 #include "SIO/Pad/PadPopn.h"
@@ -142,6 +143,15 @@ void Pad::LoadConfig(const SettingsInterface& si)
 		const int invert_r = si.GetIntValue(section.c_str(), "InvertR", 0);
 		pad->SetAnalogInvertL((invert_l & 1) != 0, (invert_l & 2) != 0);
 		pad->SetAnalogInvertR((invert_r & 1) != 0, (invert_r & 2) != 0);
+
+		// GunCon1: resolve pointer device and cursor from settings.
+		if (ci->type == Pad::ControllerType::GunCon1)
+		{
+			const std::string pointer_source = si.GetStringValue(section.c_str(), "pointer_source", "Auto");
+			static_cast<PadGunCon1*>(pad)->SetPointerSource(pointer_source);
+			static_cast<PadGunCon1*>(pad)->LoadCursorSettings(si, section);
+		}
+
 		LoadMacroButtonConfig(si, i, ci, section);
 	}
 
@@ -265,6 +275,7 @@ static const Pad::ControllerInfo* s_controller_info[] = {
 	&PadNotConnected::ControllerInfo,
 	&PadDualshock2::ControllerInfo,
 	&PadGuitar::ControllerInfo,
+	&PadGunCon1::ControllerInfo,
 	&PadJogcon::ControllerInfo,
 	&PadNegcon::ControllerInfo,
 	&PadPopn::ControllerInfo,
@@ -507,6 +518,9 @@ PadBase* Pad::CreatePad(u8 unifiedSlot, ControllerType controllerType, size_t ej
 			break;
 		case ControllerType::Guitar:
 			s_controllers[unifiedSlot] = std::make_unique<PadGuitar>(unifiedSlot, ejectTicks);
+			break;
+		case ControllerType::GunCon1:
+			s_controllers[unifiedSlot] = std::make_unique<PadGunCon1>(unifiedSlot, ejectTicks);
 			break;
 		case ControllerType::Jogcon:
 			s_controllers[unifiedSlot] = std::make_unique<PadJogcon>(unifiedSlot, ejectTicks);

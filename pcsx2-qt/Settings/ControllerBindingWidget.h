@@ -12,6 +12,7 @@
 #include "ui_ControllerBindingWidget.h"
 #include "ui_ControllerBindingWidget_DualShock2.h"
 #include "ui_ControllerBindingWidget_Guitar.h"
+#include "ui_ControllerBindingWidget_GunCon1.h"
 #include "ui_ControllerBindingWidget_Jogcon.h"
 #include "ui_ControllerBindingWidget_Negcon.h"
 #include "ui_ControllerBindingWidget_Popn.h"
@@ -200,6 +201,22 @@ public:
 
 private:
 	Ui::ControllerBindingWidget_Guitar m_ui;
+};
+
+class ControllerBindingWidget_GunCon1 final : public ControllerBindingWidget_Base
+{
+	Q_OBJECT
+
+public:
+	ControllerBindingWidget_GunCon1(ControllerBindingWidget* parent);
+	~ControllerBindingWidget_GunCon1();
+
+	QIcon getIcon() const override;
+
+	static ControllerBindingWidget_Base* createInstance(ControllerBindingWidget* parent);
+
+private:
+	Ui::ControllerBindingWidget_GunCon1 m_ui;
 };
 
 class ControllerBindingWidget_Jogcon final : public ControllerBindingWidget_Base

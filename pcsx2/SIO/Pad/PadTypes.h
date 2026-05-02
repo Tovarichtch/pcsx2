@@ -64,6 +64,7 @@ namespace Pad
 		NotConnected,
 		DualShock2,
 		Guitar,
+		GunCon1,
 		Jogcon,
 		Negcon,
 		Popn,

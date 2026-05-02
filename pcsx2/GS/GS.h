@@ -95,6 +95,7 @@ std::optional<float> GSGetHostRefreshRate();
 std::vector<GSAdapterInfo> GSGetAdapterInfo(GSRendererType renderer);
 u32 GSGetMaxUpscaleMultiplier(u32 max_texture_size);
 GSVideoMode GSgetDisplayMode();
+void GSgetDisplayYInfo(int* dy, int* dh);
 void GSgetInternalResolution(int* width, int* height);
 void GSgetStats(SmallStringBase& info);
 void GSgetMemoryStats(SmallStringBase& info);

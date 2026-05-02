@@ -640,6 +640,22 @@ GSVideoMode GSgetDisplayMode()
 	return gs->GetVideoMode();
 }
 
+void GSgetDisplayYInfo(int* dy, int* dh)
+{
+	GSRenderer* gs = g_gs_renderer.get();
+	if (!gs || !gs->m_regs)
+	{
+		*dy = 0;
+		*dh = 240;
+		return;
+	}
+
+	// Use whichever display circuit is enabled (prefer circuit 2)
+	const int idx = gs->m_regs->PMODE.EN2 ? 1 : 0;
+	*dy = gs->m_regs->DISP[idx].DISPLAY.DY;
+	*dh = gs->m_regs->DISP[idx].DISPLAY.DH + 1;
+}
+
 void GSgetInternalResolution(int* width, int* height)
 {
 	GSRenderer* gs = g_gs_renderer.get();
