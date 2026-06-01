@@ -35,6 +35,7 @@
 
 cdvdStruct cdvd;
 
+u32 PS2CLK = PS2CLK_DEFAULT;
 u32 PSXCLK = 36864000;
 
 static constexpr s32 GMT9_OFFSET_SECONDS = 9 * 60 * 60; // 32400
@@ -73,7 +74,7 @@ static void CDVDSECTORREADY_INT(u32 eCycle)
 
 	if (EmuConfig.Speedhacks.fastCDVD)
 	{
-		if (eCycle < Cdvd_FullSeek_Cycles && eCycle > 1)
+		if (eCycle < Cdvd_FullSeek_Cycles() && eCycle > 1)
 			eCycle *= 0.5f;
 	}
 
@@ -86,7 +87,7 @@ static void CDVDREAD_INT(u32 eCycle)
 	// Keep long seeks out though, as games may try to push dmas while seeking. (Tales of the Abyss)
 	if (EmuConfig.Speedhacks.fastCDVD)
 	{
-		if (eCycle < Cdvd_FullSeek_Cycles && eCycle > 1)
+		if (eCycle < Cdvd_FullSeek_Cycles() && eCycle > 1)
 			eCycle *= 0.5f;
 	}
 
@@ -1496,12 +1497,12 @@ static uint cdvdStartSeek(uint newsector, CDVD_MODE_TYPE mode, bool transition_t
 		{
 			// Full Seek
 			CDVD_LOG("CdSeek Begin > to sector %d, from %d - delta=%d [FULL]", cdvd.SeekToSector, cdvd.CurrentSector, delta);
-			seektime = Cdvd_FullSeek_Cycles;
+			seektime = Cdvd_FullSeek_Cycles();
 		}
 		else
 		{
 			CDVD_LOG("CdSeek Begin > to sector %d, from %d - delta=%d [FAST]", cdvd.SeekToSector, cdvd.CurrentSector, delta);
-			seektime = Cdvd_FastSeek_Cycles;
+			seektime = Cdvd_FastSeek_Cycles();
 		}
 		isSeeking = true;
 	}

@@ -178,7 +178,6 @@ void _hwWrite32( u32 mem, u32 value )
 						u64 cycle = psxRegs.cycle;
 						//pgifInit();
 						psxReset();
-						PSXCLK =  33868800;
 						SPU2::Reset(true);
 						setPs1CDVDSpeed(cdvd.Speed);
 						psxHu32(HW_ICFG) = 0x8;

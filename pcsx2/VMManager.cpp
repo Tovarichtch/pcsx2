@@ -192,6 +192,7 @@ static bool s_fast_boot_requested = false;
 static bool s_gs_open_on_initialize = false;
 static bool s_thread_affinities_set = false;
 static bool s_acgame_sys246 = false;
+static bool s_acgame_sys256 = false;
 
 static LimiterModeType s_limiter_mode = LimiterModeType::Nominal;
 static s64 s_limiter_ticks_per_frame = 0;
@@ -1300,6 +1301,9 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 				s_disc_serial = s_serial = INI.GetStringValue("game", "gameid");
 				std::string platform = INI.GetStringValue("game", "platform", "");
 				s_acgame_sys246 = (platform == "246" || platform == "256");
+				s_acgame_sys256 = (platform == "256");
+				if (s_acgame_sys256)
+					PS2CLK = PS2CLK_S256;
 				if (s_acgame_sys246)
 				{
 					Console.WriteLnFmt(Color_Green, "ACGAME: System {} detected — extended IOP RAM", platform);
@@ -1597,6 +1601,11 @@ VMBootResult VMManager::Initialize(const VMBootParameters& boot_params, Error* e
 	mmap_ResetBlockTracking();
 	if (s_acgame_sys246)
 		EmuConfig.Cpu.ExtraMemory = true;
+	if (s_acgame_sys256)
+	{
+		s_sys256_mode = true;
+		Console.WriteLnFmt(Color_Green, "S256: bus clock 393MHz, IOP 49MHz");
+	}
 	memSetExtraMemMode(EmuConfig.Cpu.ExtraMemory);
 	Internal::ClearCPUExecutionCaches();
 	FPControlRegister::SetCurrent(EmuConfig.Cpu.FPUFPCR);
@@ -1757,6 +1766,9 @@ void VMManager::Shutdown(bool save_resume_state)
 	SaveSessionTime(s_disc_serial);
 	s_elf_override = {};
 	s_acgame = {};
+	PS2CLK = PS2CLK_DEFAULT;
+	PSXCLK = 36864000;
+	s_sys256_mode = false;
 	ClearELFInfo();
 	CDVDsys_ClearFiles();
 
