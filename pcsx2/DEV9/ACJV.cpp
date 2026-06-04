@@ -270,6 +270,11 @@ u16 m_jvsButtonState[JVS_PLAYER_COUNT] = {};
 u8 m_testButtonState = 0;
 u16 m_coin1 = 0;
 u16 m_coin2 = 0;
+static JVS_MODE m_jvsMode = JVS_MODE::DEFAULT;
+static u16 m_jvsScreenPosX = 0;
+static u16 m_jvsScreenPosY = 0;
+static u16 m_jvsWheelChannels[JVS_WHEEL_CHANNEL_MAX] = {};
+static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
 // Gamepad input -> JVS button state: set or clear a button bit for a player
 void ACJV::SetButtonState(u32 player, u16 mask, bool pressed)
@@ -289,6 +294,17 @@ void ACJV::InsertCoin(u32 slot)
 		m_coin1++;
 	else if (slot == 1)
 		m_coin2++;
+}
+
+void ACJV::SetMode(JVS_MODE mode)
+{
+	m_jvsMode = mode;
+}
+
+void ACJV::SetScreenPos(u16 x, u16 y)
+{
+	m_jvsScreenPosX = x;
+	m_jvsScreenPosY = y;
 }
 
 void do_jvs_packet(const u8* input, u8* output) {
@@ -374,7 +390,6 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*output++) = JVS_PLAYER_COUNT; //2 players
 			(*output++) = 0x10;             //16 switches
 			(*output++) = 0x00;
-#if 0
 			if(m_jvsMode == JVS_MODE::DRIVE)
 			{
 				(*output++) = 0x03;                  //Analog Input
@@ -422,7 +437,6 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 				(*dstSize) += 4;
 			}
-#endif
 			(*output++) = 0x00; //End of features
 
 			(*dstSize) += 10;
@@ -558,7 +572,6 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 
-#if 0
 			if(m_jvsMode == JVS_MODE::LIGHTGUN)
 			{
 				assert(channel == 2);
@@ -584,16 +597,10 @@ void do_jvs_packet(const u8* input, u8* output) {
 					(*output++) = static_cast<u8>(m_jvsWheelChannels[i]);
 				}
 			}
-			else
-#endif
-			{
-				assert(false);
-			}
 
 			(*dstSize) += (2 * channel) + 1;
 		}
 		break;
-#if 0
 		case JVS::READ_INP_SCREENPOS:
 		{
 			assert(inSize != 0);
@@ -611,7 +618,6 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*dstSize) += 5;
 		}
-#endif
 		break;
 		// GPIO output
 		case JVS::OUTPUT_GENERAL:

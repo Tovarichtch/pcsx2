@@ -35,6 +35,17 @@ enum BOARDID {
 	MIU_IO_JPN_GUN_EXTENTI
 };
 
+enum class JVS_MODE {
+	DEFAULT,
+	LIGHTGUN,
+	DRIVE,
+	DRUM,
+	TOUCH,
+};
+
+#define JVS_WHEEL_CHANNEL_MAX 3
+#define JVS_DRUM_CHANNEL_MAX 8
+
 namespace ACJV {
     enum : u32
     {
@@ -79,6 +90,8 @@ namespace ACJV {
     void SetDefaultConfiguration(SettingsInterface& si);
 
     bool IsSuppressDaemonEnabled();
+    void SetMode(JVS_MODE mode);
+    void SetScreenPos(u16 x, u16 y);
 }
 
 
