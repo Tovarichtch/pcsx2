@@ -1300,9 +1300,11 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 				s_imgname = INI.GetStringValue("data", "mediasrc");
 				s_disc_serial = s_serial = INI.GetStringValue("game", "gameid");
 				std::string platform = INI.GetStringValue("game", "platform", "");
-				s_acgame_sys246 = (platform == "246" || platform == "256");
-				s_acgame_sys256 = (platform == "256");
-				if (s_acgame_sys256)
+				s_acgame_sys246 = (platform == "246" || platform == "256" || platform == "super256");
+				s_acgame_sys256 = (platform == "256" || platform == "super256");
+				if (platform == "super256")
+					PS2CLK = PS2CLK_SS256;
+				else if (s_acgame_sys256)
 					PS2CLK = PS2CLK_S256;
 				if (s_acgame_sys246)
 				{
