@@ -280,7 +280,7 @@ namespace usb_lightgun
 							ACJV::SetScreenPos(static_cast<u16>((1.0f - dx) * 0xFFFF), static_cast<u16>(dy * 0xFFFF));
 						else
 							ACJV::SetScreenPos(0, 0);
-						ACJV::SetButtonState(0, JVS_BTN_RIGHT, on_screen);
+						ACJV::SetButtonState(0, JVS_BTN_RIGHT, !on_screen);
 					}
 
 					// Time Crisis games do a "calibration" by displaying a black frame for a single frame,

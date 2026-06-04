@@ -3,6 +3,8 @@
 #include "ACJV.h"
 #include "Config.h"
 #include "Host.h"
+#include "Input/InputManager.h"
+#include "GS/GS.h"
 #include "common/SettingsInterface.h"
 #include <array>
 #include <string>
@@ -307,6 +309,25 @@ void ACJV::SetScreenPos(u16 x, u16 y)
 	m_jvsScreenPosY = y;
 }
 
+static void UpdateLightgunFromMouse()
+{
+	const auto& [mx, my] = InputManager::GetPointerAbsolutePosition(0);
+	float dx, dy;
+	GSTranslateWindowToDisplayCoordinates(mx, my, &dx, &dy);
+	bool on_screen = (dx >= 0.0f && dy >= 0.0f);
+	if (on_screen)
+	{
+		m_jvsScreenPosX = static_cast<u16>((1.0f - dx) * 0xFFFF);
+		m_jvsScreenPosY = static_cast<u16>(dy * 0xFFFF);
+	}
+	else
+	{
+		m_jvsScreenPosX = 0;
+		m_jvsScreenPosY = 0;
+	}
+	ACJV::SetButtonState(0, JVS_BTN_RIGHT, !on_screen);
+}
+
 void do_jvs_packet(const u8* input, u8* output) {
 	if (input[0] != JVS_SYNC) {
 		//Console.Error("ACJV::%s: Error: input does not begin with E0, (%02X, %02X)", __FUNCTION__, input[0], input[1]);
@@ -575,6 +596,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			if(m_jvsMode == JVS_MODE::LIGHTGUN)
 			{
 				assert(channel == 2);
+				UpdateLightgunFromMouse();
 				(*output++) = static_cast<u8>(m_jvsScreenPosX >> 8); //Pos X MSB
 				(*output++) = static_cast<u8>(m_jvsScreenPosX);      //Pos X LSB
 				(*output++) = static_cast<u8>(m_jvsScreenPosY >> 8); //Pos Y MSB
@@ -608,6 +630,9 @@ void do_jvs_packet(const u8* input, u8* output) {
 			assert(channel == 1);
 			inWorkChecksum += channel;
 			inSize--;
+
+			if(m_jvsMode == JVS_MODE::LIGHTGUN)
+				UpdateLightgunFromMouse();
 
 			(*output++) = JVS_CMD_SUCCESS;
 
