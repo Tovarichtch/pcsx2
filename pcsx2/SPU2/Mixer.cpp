@@ -546,7 +546,7 @@ void spu2Mix()
 
 	StereoOut32 Ext(MixCore(0, VoiceData[0], InputData[0], StereoOut32::Empty));
 
-	if ((PlayMode & 4) || (Cores[0].Mute != 0))
+	if (Cores[0].Mute != 0)
 		Ext = StereoOut32::Empty;
 	else
 	{
