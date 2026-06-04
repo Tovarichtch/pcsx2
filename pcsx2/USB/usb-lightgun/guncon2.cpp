@@ -275,10 +275,12 @@ namespace usb_lightgun
 						const auto& [mx, my] = InputManager::GetPointerAbsolutePosition(0);
 						float dx, dy;
 						GSTranslateWindowToDisplayCoordinates(mx, my, &dx, &dy);
-						if (dx >= 0.0f && dy >= 0.0f)
+						bool on_screen = (dx >= 0.0f && dy >= 0.0f);
+						if (on_screen)
 							ACJV::SetScreenPos(static_cast<u16>((1.0f - dx) * 0xFFFF), static_cast<u16>(dy * 0xFFFF));
 						else
 							ACJV::SetScreenPos(0, 0);
+						ACJV::SetButtonState(0, JVS_BTN_RIGHT, on_screen);
 					}
 
 					// Time Crisis games do a "calibration" by displaying a black frame for a single frame,

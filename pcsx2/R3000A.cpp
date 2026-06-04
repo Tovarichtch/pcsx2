@@ -48,7 +48,8 @@ void psxReset()
 	psxRegs.iopCycleEECarry = 0;
 	psxRegs.iopNextEventCycle = psxRegs.cycle + 4;
 
-	PSXCLK = (PS2CLK == PS2CLK_S256) ? 49152000 : 36864000;
+	PSXCLK = (PS2CLK == PS2CLK_SS256) ? 55296000 :
+	         (PS2CLK == PS2CLK_S256)  ? 49152000 : 36864000;
 	psxHwReset();
 	ioman::reset();
 	psxBiosReset();
