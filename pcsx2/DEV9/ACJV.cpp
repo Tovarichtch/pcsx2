@@ -282,7 +282,7 @@ static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
 static const GunMapping s_default_gun_mapping = {JVS_BTN_2, JVS_BTN_3, JVS_BTN_RIGHT, false};
 static const std::map<std::string, GunMapping> s_gun_mappings = {
-	{"TST1", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 — RAYS PCB (mode 3): trigger=BTN2, pedal=BTN6, sensor=trigger-held (no JVS bit)
+	{"TST1", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 — MIU-I/O (mode 2): trigger=BTN2, pedal=BTN6, no sensor bit
 	{"TST2", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 (Ver.B)
 	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Time Crisis 4 — Ghidra RE: trigger=LEFT, pedal=BTN3, sensor=RIGHT
 	{"CBR1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Cobra The Arcade — needs verification
@@ -737,31 +737,8 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*dstSize) += 1;
 		}
 		break;
-		case 0x70:
-		{
-			// Manufacturer-specific command (RAYS PCB / MIU-I/O gun board calibration)
-			// Format: [0x70] [subcmd_group] [count] [data0..data_{count-1}]
-			u8 subcmdGroup = (*input++); inSize--; inWorkChecksum += subcmdGroup;
-			u8 count = (*input++); inSize--; inWorkChecksum += count;
-			u8 subcmd = 0;
-			for (u8 i = 0; i < count; i++)
-			{
-				u8 b = (*input++); inSize--; inWorkChecksum += b;
-				if (i == 0) subcmd = b;
-			}
-			Console.WriteLn("ACJV: JVS cmd 0x70 group=0x%02X count=%d subcmd=0x%02X", subcmdGroup, count, subcmd);
-
-			(*output++) = JVS_CMD_SUCCESS;
-			(*output++) = 0x01;
-			(*output++) = 0x02;
-			(*output++) = 0x00;
-			(*output++) = 0x01;
-			(*dstSize) += 5;
-		}
-		break;
 		default:
 			//Unknown command
-			Console.WriteLn("ACJV: unknown JVS CMD 0x%X (inSize remaining: %d)", cmd, inSize);
 			break;
 		}
 	}
