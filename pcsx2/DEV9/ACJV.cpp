@@ -286,7 +286,9 @@ static const std::map<std::string, GunMapping> s_gun_mappings = {
 	{"TST2", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 (Ver.B)
 	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Time Crisis 4 — Ghidra RE: trigger=LEFT, pedal=BTN3, sensor=RIGHT
 	{"CBR1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Cobra The Arcade — needs verification
-	{"VPN1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Vampire Night — needs verification
+	{"VPN1", {JVS_BTN_1,    0,             0,              false}}, // Vampire Night — Ghidra RE: trigger=BTN1 (SwData bit 0x0200), no pedal/sensor
+	{"VPN2", {JVS_BTN_1,    0,             0,              false}}, // Vampire Night (Ver.B)
+	{"VPN3", {JVS_BTN_1,    0,             0,              false}}, // Vampire Night (export)
 };
 static const GunMapping* m_gunMapping = &s_default_gun_mapping;
 

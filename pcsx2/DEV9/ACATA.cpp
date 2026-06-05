@@ -226,6 +226,8 @@ void ACATA::handle_cmd(u16 val) {
         ACATA::cmd_handled = val;
         ACATA::cmd_handledc = 0;
         R_STATUS |= ATA_STAT_DRQ;
+        CLRB(R_STATUS, ATA_STAT_BUSY);
+        ACCORE::intr(ACCORE::INTRN_ATA);
     break;
     case ATA_C_PACKET:
         ACATA::cmd_handled = val;
