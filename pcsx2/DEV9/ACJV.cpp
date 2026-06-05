@@ -282,8 +282,8 @@ static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
 static const GunMapping s_default_gun_mapping = {JVS_BTN_2, JVS_BTN_3, JVS_BTN_RIGHT, false};
 static const std::map<std::string, GunMapping> s_gun_mappings = {
-	{"TST1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_5,     true}},  // Time Crisis 3 — mode 1 (TSS-I/O): trigger=BTN2(>>8), pedal=BTN3(>>7), sensor=BTN5
-	{"TST2", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_5,     true}},  // Time Crisis 3 (Ver.B)
+	{"TST1", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 — RAYS PCB (mode 3): trigger=BTN2, pedal=BTN6, sensor=trigger-held (no JVS bit)
+	{"TST2", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 (Ver.B)
 	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Time Crisis 4 — Ghidra RE: trigger=LEFT, pedal=BTN3, sensor=RIGHT
 	{"CBR1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Cobra The Arcade — needs verification
 	{"VPN1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Vampire Night — needs verification
@@ -333,7 +333,7 @@ void ACJV::SetGameId(const std::string& gameid)
 		m_gunMapping = &s_default_gun_mapping;
 
 	if (gameid == "TST1" || gameid == "TST2")
-		CurrentBoardID = TSS_GUN_EXTENTION;
+		CurrentBoardID = MIU_IO_JPN_GUN_EXTENTI;
 	else
 		CurrentBoardID = RAYS_PCB;
 }
@@ -386,7 +386,6 @@ void do_jvs_packet(const u8* input, u8* output) {
 	(*output++) = JVS_CMD_SUCCESS;
 	while(inSize != 0) {
 		u8 cmd = (*input++);
-		// Console.WriteLn("jvs_cmd:0x%02X", cmd);
 		inSize--;
 		inWorkChecksum += cmd;
 		switch(cmd) {
@@ -681,7 +680,10 @@ void do_jvs_packet(const u8* input, u8* output) {
 				if (m_jvsLightgunDX >= 0.0f)
 				{
 					posX = static_cast<u16>(m_jvsLightgunDX * 640.0f);
-					posY = static_cast<u16>(m_jvsLightgunDY * 224.0f);
+					if (ACJV::CurrentBoardID == RAYS_PCB || ACJV::CurrentBoardID == MIU_IO_JPN_GUN_EXTENTI)
+						posY = static_cast<u16>((1.0f - m_jvsLightgunDY) * 224.0f);
+					else
+						posY = static_cast<u16>(m_jvsLightgunDY * 224.0f);
 					if (posX == 0) posX = 1;
 					if (posY == 0) posY = 1;
 				}
@@ -735,9 +737,31 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*dstSize) += 1;
 		}
 		break;
+		case 0x70:
+		{
+			// Manufacturer-specific command (RAYS PCB / MIU-I/O gun board calibration)
+			// Format: [0x70] [subcmd_group] [count] [data0..data_{count-1}]
+			u8 subcmdGroup = (*input++); inSize--; inWorkChecksum += subcmdGroup;
+			u8 count = (*input++); inSize--; inWorkChecksum += count;
+			u8 subcmd = 0;
+			for (u8 i = 0; i < count; i++)
+			{
+				u8 b = (*input++); inSize--; inWorkChecksum += b;
+				if (i == 0) subcmd = b;
+			}
+			Console.WriteLn("ACJV: JVS cmd 0x70 group=0x%02X count=%d subcmd=0x%02X", subcmdGroup, count, subcmd);
+
+			(*output++) = JVS_CMD_SUCCESS;
+			(*output++) = 0x01;
+			(*output++) = 0x02;
+			(*output++) = 0x00;
+			(*output++) = 0x01;
+			(*dstSize) += 5;
+		}
+		break;
 		default:
 			//Unknown command
-			// Console.Error("ACJV::%s: unknown JVS CMD 0x%X", __FUNCTION__, cmd);
+			Console.WriteLn("ACJV: unknown JVS CMD 0x%X (inSize remaining: %d)", cmd, inSize);
 			break;
 		}
 	}
@@ -760,7 +784,6 @@ void do_acjv_packet() {
 		rd16[0x30]  = s_dip_switch_state; // here the game polls the dip switch values?
 		u16 PacketID = wr16[0x0C];
 		if(PacketID != 0) {
-			// Console.WriteLn("ACJV::JVS: Packet ID 0x%04X", PacketID);
 			if(wrbuf[0x122] == JVS_SYNC) {
 				do_jvs_packet(&wrbuf[0x122], &rdbuf[0x15A]);
 			} else {
