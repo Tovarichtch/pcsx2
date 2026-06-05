@@ -584,9 +584,9 @@ namespace usb_lightgun
 				const u32 player = s->port;
 				switch (bind_index)
 				{
-				case BID_TRIGGER: ACJV::SetButtonState(player, JVS_BTN_LEFT, pressed); break;  // GUN TRIGGER
-				case BID_A:       ACJV::SetButtonState(player, JVS_BTN_3, pressed); break;     // FOOT PEDAL
-				case BID_START:   ACJV::SetButtonState(player, JVS_BTN_START, pressed); break;  // START
+				case BID_TRIGGER: ACJV::SetButtonState(player, ACJV::GetGunMapping().trigger, pressed); break;
+				case BID_A:       ACJV::SetButtonState(player, ACJV::GetGunMapping().pedal, pressed); break;
+				case BID_START:   ACJV::SetButtonState(player, JVS_BTN_START, pressed); break;
 				case BID_SELECT:  if (pressed) ACJV::InsertCoin(player); break;                 // COIN
 				}
 			}

@@ -275,8 +275,20 @@ u16 m_coin2 = 0;
 static JVS_MODE m_jvsMode = JVS_MODE::DEFAULT;
 static u16 m_jvsScreenPosX = 0;
 static u16 m_jvsScreenPosY = 0;
+static float m_jvsLightgunDX = -1.0f;
+static float m_jvsLightgunDY = -1.0f;
 static u16 m_jvsWheelChannels[JVS_WHEEL_CHANNEL_MAX] = {};
 static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
+
+static const GunMapping s_default_gun_mapping = {JVS_BTN_2, JVS_BTN_3, JVS_BTN_RIGHT, false};
+static const std::map<std::string, GunMapping> s_gun_mappings = {
+	{"TST1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_5,     true}},  // Time Crisis 3 — mode 1 (TSS-I/O): trigger=BTN2(>>8), pedal=BTN3(>>7), sensor=BTN5
+	{"TST2", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_5,     true}},  // Time Crisis 3 (Ver.B)
+	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Time Crisis 4 — Ghidra RE: trigger=LEFT, pedal=BTN3, sensor=RIGHT
+	{"CBR1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Cobra The Arcade — needs verification
+	{"VPN1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Vampire Night — needs verification
+};
+static const GunMapping* m_gunMapping = &s_default_gun_mapping;
 
 // Gamepad input -> JVS button state: set or clear a button bit for a player
 void ACJV::SetButtonState(u32 player, u16 mask, bool pressed)
@@ -309,6 +321,28 @@ void ACJV::SetScreenPos(u16 x, u16 y)
 	m_jvsScreenPosY = y;
 }
 
+void ACJV::SetGameId(const std::string& gameid)
+{
+	auto it = s_gun_mappings.find(gameid);
+	if (it != s_gun_mappings.end())
+	{
+		m_gunMapping = &it->second;
+		Console.WriteLn("ACJV: gun mapping for %s: trigger=0x%04X pedal=0x%04X sensor=0x%04X", gameid.c_str(), it->second.trigger, it->second.pedal, it->second.sensor);
+	}
+	else
+		m_gunMapping = &s_default_gun_mapping;
+
+	if (gameid == "TST1" || gameid == "TST2")
+		CurrentBoardID = TSS_GUN_EXTENTION;
+	else
+		CurrentBoardID = RAYS_PCB;
+}
+
+const GunMapping& ACJV::GetGunMapping()
+{
+	return *m_gunMapping;
+}
+
 static void UpdateLightgunFromMouse()
 {
 	const auto& [mx, my] = InputManager::GetPointerAbsolutePosition(0);
@@ -317,15 +351,20 @@ static void UpdateLightgunFromMouse()
 	bool on_screen = (dx >= 0.0f && dy >= 0.0f);
 	if (on_screen)
 	{
+		m_jvsLightgunDX = dx;
+		m_jvsLightgunDY = dy;
 		m_jvsScreenPosX = static_cast<u16>((1.0f - dx) * 0xFFFF);
 		m_jvsScreenPosY = static_cast<u16>(dy * 0xFFFF);
 	}
 	else
 	{
+		m_jvsLightgunDX = -1.0f;
+		m_jvsLightgunDY = -1.0f;
 		m_jvsScreenPosX = 0;
 		m_jvsScreenPosY = 0;
 	}
-	ACJV::SetButtonState(0, JVS_BTN_RIGHT, !on_screen);
+	const auto& gm = ACJV::GetGunMapping();
+	ACJV::SetButtonState(0, gm.sensor, gm.sensor_active_high ? on_screen : !on_screen);
 }
 
 void do_jvs_packet(const u8* input, u8* output) {
@@ -636,10 +675,28 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 
-			(*output++) = static_cast<u8>(m_jvsScreenPosX >> 8); //Pos X MSB
-			(*output++) = static_cast<u8>(m_jvsScreenPosX);      //Pos X LSB
-			(*output++) = static_cast<u8>(m_jvsScreenPosY >> 8); //Pos Y MSB
-			(*output++) = static_cast<u8>(m_jvsScreenPosY);      //Pos Y LSB
+			if(m_jvsMode == JVS_MODE::LIGHTGUN)
+			{
+				u16 posX = 0, posY = 0;
+				if (m_jvsLightgunDX >= 0.0f)
+				{
+					posX = static_cast<u16>(m_jvsLightgunDX * 640.0f);
+					posY = static_cast<u16>(m_jvsLightgunDY * 224.0f);
+					if (posX == 0) posX = 1;
+					if (posY == 0) posY = 1;
+				}
+				(*output++) = static_cast<u8>(posX >> 8);
+				(*output++) = static_cast<u8>(posX);
+				(*output++) = static_cast<u8>(posY >> 8);
+				(*output++) = static_cast<u8>(posY);
+			}
+			else
+			{
+				(*output++) = 0;
+				(*output++) = 0;
+				(*output++) = 0;
+				(*output++) = 0;
+			}
 
 			(*dstSize) += 5;
 		}

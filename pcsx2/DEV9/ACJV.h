@@ -46,6 +46,13 @@ enum class JVS_MODE {
 #define JVS_WHEEL_CHANNEL_MAX 3
 #define JVS_DRUM_CHANNEL_MAX 8
 
+struct GunMapping {
+    u16 trigger;
+    u16 pedal;
+    u16 sensor;
+    bool sensor_active_high;
+};
+
 namespace ACJV {
     enum : u32
     {
@@ -92,6 +99,8 @@ namespace ACJV {
     bool IsSuppressDaemonEnabled();
     void SetMode(JVS_MODE mode);
     void SetScreenPos(u16 x, u16 y);
+    void SetGameId(const std::string& gameid);
+    const GunMapping& GetGunMapping();
 }
 
 

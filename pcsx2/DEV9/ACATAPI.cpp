@@ -222,6 +222,10 @@ void ACATAPI::handle_cmd(atapi_packet_t P) {
         break;
     }
 
+    case ATAPICMD::SET_CD_SPEED:
+        atapi_complete_nodata();
+        break;
+
     default:
         Console.Error("ACATAPI: UNK_CMD %02X, lba:%08X, nsec:%04X", P.raw8[0], transf_lba, nsec);
         break;
