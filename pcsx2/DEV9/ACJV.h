@@ -11,7 +11,7 @@ struct InputBindingInfo;
 #define ACJV_BASE_ADDDR 0x12400000
 #define ACJV_RANGE      0x1240
 #define ACJV_ADDR_CAP   0x8000 // ACJV.IRX r/w fun will do `(2 * (addr & 0x3FFF)`, meaning available range is `0x12400000` - `0x12407FFE`
-#define ACJV_PACKETSIZE 0x300 // seems to be the ammount of bytes that's always read/written by the game
+#define ACJV_PACKETSIZE 0x300 // seems to be the amount of bytes that's always read/written by the game
 
 #define ACJV_RDBASE 0x12404000 // acmeme access addr 0x2300
 #define ACJV_WRBASE 0x12404600 // acmeme access addr 0x2000
@@ -78,7 +78,6 @@ namespace ACJV {
     u16 Read16(u32 addr);
     void Write16(u32 addr, u16 val);
     extern enum BOARDID CurrentBoardID;
-    extern u16 ButtonState[JVS_PLAYER_COUNT];
 
     std::span<const DIPSwitchInfo> GetDIPSwitches();
     const DIPSwitchInfo& GetTestModeDIPSwitch();

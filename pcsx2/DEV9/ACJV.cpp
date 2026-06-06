@@ -19,7 +19,6 @@ enum ACJVCMD {
 
 bool ACJV::enabled = false;
 #define JVS_PKTINDX_TO_ADDR(index) ((2 * (index & 0x3FFF)) + 0x12400000)
-// u16 ACJV::JVBUF[ACJV_ADDR_CAP];
 
 #define ANS(addr, what) case addr: return what
 #define JVS_CHECK_ADDR_JVSPACKET(addr) ((addr & 0x00000F00) == 0x00000600) // when ACJV writes to 0x12406???.
@@ -46,8 +45,6 @@ std::string BOARDS[] = {
 	"namco ltd.;MIU-I/O;Ver2.05;JPN,GUN-EXTENTION",
 };
 enum BOARDID ACJV::CurrentBoardID = RAYS_PCB;
-
-extern u16 ACJV::ButtonState[JVS_PLAYER_COUNT] = {0,0};
 
 static constexpr u16 DEFAULT_DIP_SWITCH_STATE =
     (DIPS::VIDEO_VOLTAGE | DIPS::MONITOR_SYNCFREQ | DIPS::VIDEO_SYNC_SPLIT);
@@ -110,7 +107,6 @@ static constexpr const std::array<InputBindingInfo, 2> s_jvs_coin_bindings = {{
 
 static u16 s_dip_switch_state = DEFAULT_DIP_SWITCH_STATE;
 static bool s_suppress_daemon = true;
-u32 lastRead = 0x0;
 
 std::span<const ACJV::DIPSwitchInfo> ACJV::GetDIPSwitches()
 {
@@ -264,9 +260,8 @@ void ACJV::Write16(u32 addr, u16 val) {
 	}
 }
 
-#define assert(x) if (!(x)) Console.WriteLn("## ASSERT ## %s:%s:%d %s", __FILE__, __FUNCTION__, __LINE__, #x);
+#define JVS_ASSERT(x) if (!(x)) Console.WriteLn("## ASSERT ## %s:%s:%d %s", __FILE__, __FUNCTION__, __LINE__, #x);
 
-u8 m_counter;
 u16 m_jvsSystemButtonState = 0;
 u16 m_jvsButtonState[JVS_PLAYER_COUNT] = {};
 u8 m_testButtonState = 0;
@@ -386,8 +381,6 @@ static void UpdateLightgunFromMouse()
 
 void do_jvs_packet(const u8* input, u8* output) {
 	if (input[0] != JVS_SYNC) {
-		//Console.Error("ACJV::%s: Error: input does not begin with E0, (%02X, %02X)", __FUNCTION__, input[0], input[1]);
-		//return;
 	}
 	input++;
 	u8 inDest = *input++;
@@ -407,9 +400,9 @@ void do_jvs_packet(const u8* input, u8* output) {
 		inWorkChecksum += cmd;
 		switch(cmd) {
 		case JVS::RESET: {
-			assert(inSize != 0);
+			JVS_ASSERT(inSize != 0);
 			u8 param = (*input++);
-			assert(param == 0xD9);
+			JVS_ASSERT(param == 0xD9);
 			inSize--;
 			inWorkChecksum += param;
 		}
@@ -428,7 +421,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 		}
 		break;
 		case JVS::SET_NODE_ADDRESS: {
-			assert(inSize != 0);
+			JVS_ASSERT(inSize != 0);
 			u8 param = (*input++);
 			inSize--;
 			inWorkChecksum += param;
@@ -523,7 +516,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			while(1)
 			{
 				u8 value = (*input++);
-				assert(inSize != 0);
+				JVS_ASSERT(inSize != 0);
 				inSize--;
 				inWorkChecksum += value;
 				if(value == 0) break;
@@ -532,12 +525,12 @@ void do_jvs_packet(const u8* input, u8* output) {
 		break;
 		case JVS::READ_INP_SWITCH:
 		{
-			assert(inSize >= 2);
+			JVS_ASSERT(inSize >= 2);
 			u8 playerCount = (*input++);
 			u8 byteCount = (*input++);
-			assert(playerCount >= 1);
-			assert(playerCount <= JVS_PLAYER_COUNT);
-			assert(byteCount == 2);
+			JVS_ASSERT(playerCount >= 1);
+			JVS_ASSERT(playerCount <= JVS_PLAYER_COUNT);
+			JVS_ASSERT(byteCount == 2);
 			inWorkChecksum += playerCount;
 			inWorkChecksum += byteCount;
 			inSize -= 2;
@@ -559,10 +552,10 @@ void do_jvs_packet(const u8* input, u8* output) {
 		break;
 		case JVS::READ_INP_COIN:
 		{
-			assert(inSize != 0);
+			JVS_ASSERT(inSize != 0);
 			u8 slotCount = (*input++);
-			assert(slotCount >= 1);
-			assert(slotCount <= 2);
+			JVS_ASSERT(slotCount >= 1);
+			JVS_ASSERT(slotCount <= 2);
 			inWorkChecksum += slotCount;
 			inSize--;
 			u8 slot1Condition = COIN_NORMAL; // see enum COINCOND
@@ -584,15 +577,15 @@ void do_jvs_packet(const u8* input, u8* output) {
 			}
 		}
 		break;
-		case JVS::OUTPUT_COIN_NUM: // actually never received this jvs cmd
+		case JVS::OUTPUT_COIN_NUM:
 		{
-			assert(inSize != 3);
+			JVS_ASSERT(inSize >= 3);
 			u8 slotCount = (*input++);
 			u8 amountMSB = (*input++);
 			u8 amountLSB = (*input++);
 
-			assert(slotCount >= 1);
-			assert(slotCount <= 2);
+			JVS_ASSERT(slotCount >= 1);
+			JVS_ASSERT(slotCount <= 2);
 			//inWorkChecksum += slotCount;
 			inSize -= 3;
 
@@ -604,15 +597,15 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*dstSize) += 1;
 		}
 		break;
-		case JVS::DECREASE_COIN_NUM: // actually never received this jvs cmd
+		case JVS::DECREASE_COIN_NUM:
 		{
-			assert(inSize != 3);
+			JVS_ASSERT(inSize >= 3);
 			u8 slotCount = (*input++);
 			u8 amountMSB = (*input++);
 			u8 amountLSB = (*input++);
 
-			assert(slotCount >= 1);
-			assert(slotCount <= 2);
+			JVS_ASSERT(slotCount >= 1);
+			JVS_ASSERT(slotCount <= 2);
 			//inWorkChecksum += slotCount;
 			inSize -= 3;
 
@@ -626,7 +619,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 		break;
 		case JVS::READ_INP_ANALOG:
 		{
-			assert(inSize != 0);
+			JVS_ASSERT(inSize != 0);
 			u8 channel = (*input++);
 			inWorkChecksum += channel;
 			inSize--;
@@ -635,7 +628,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			if(m_jvsMode == JVS_MODE::LIGHTGUN)
 			{
-				assert(channel == 2);
+				JVS_ASSERT(channel == 2);
 				UpdateLightgunFromMouse();
 				(*output++) = static_cast<u8>(m_jvsScreenPosX >> 8); //Pos X MSB
 				(*output++) = static_cast<u8>(m_jvsScreenPosX);      //Pos X LSB
@@ -644,7 +637,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			}
 			else if(m_jvsMode == JVS_MODE::DRUM)
 			{
-				assert(channel == JVS_DRUM_CHANNEL_MAX);
+				JVS_ASSERT(channel == JVS_DRUM_CHANNEL_MAX);
 				for(int i = 0; i < JVS_DRUM_CHANNEL_MAX; i++)
 				{
 					(*output++) = static_cast<u8>(m_jvsDrumChannels[i] >> 8);
@@ -665,7 +658,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 		break;
 		case JVS::READ_INP_SCREENPOS:
 		{
-			assert(inSize != 0);
+			JVS_ASSERT(inSize != 0);
 			u8 channel = (*input++);
 			inWorkChecksum += channel;
 			inSize--;
@@ -702,7 +695,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 		// GPIO output
 		case JVS::OUTPUT_GENERAL:
 		{
-			assert(inSize >= 2);
+			JVS_ASSERT(inSize >= 2);
 
 			u8 bytecount = (*input++);
 			inWorkChecksum += bytecount;
@@ -716,16 +709,8 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 				if(i == 1)
 				{
-					// value1 0xC0 indicates P1 recoil triggered
 					int p1Recoil = (gpvalue >= 0x50) ? 1 : 0;
-					/*if(p1Recoil != m_p1RecoilLast)
-					{
-						// TODOx6
-						//m_p1RecoilLast = p1Recoil;
-#ifdef _WIN32
-						m_mameCompatOutput->SendRecoil(p1Recoil);
-#endif
-					}*/
+					(void)p1Recoil;
 				}
 			}
 
@@ -739,8 +724,8 @@ void do_jvs_packet(const u8* input, u8* output) {
 		}
 	}
 	u8 inChecksum = (*input);
-	// if (inChecksum != (inWorkChecksum & 0xFF)) 
-		// Console.Warning("ACJV::%s: checksum mismatch: %02X | %02X", __FUNCTION__, inChecksum, inWorkChecksum&0xFF);
+	(void)inChecksum;
+	(void)inWorkChecksum;
 }
 
 
