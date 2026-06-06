@@ -320,8 +320,10 @@ void ACJV::SetScreenPos(u16 x, u16 y)
 	m_jvsScreenPosY = y;
 }
 
+// Called from VMManager on game boot. Resets all JVS state and selects per-game I/O config.
 void ACJV::SetGameId(const std::string& gameid)
 {
+	// Clean slate: zero all input state on game switch within the emulator
 	m_coin1 = 0;
 	m_coin2 = 0;
 	m_jvsButtonState[0] = 0;
@@ -335,6 +337,7 @@ void ACJV::SetGameId(const std::string& gameid)
 	std::memset(m_jvsWheelChannels, 0, sizeof(m_jvsWheelChannels));
 	std::memset(m_jvsDrumChannels, 0, sizeof(m_jvsDrumChannels));
 
+	// Select per-game gun mapping, or fall back to default
 	auto it = s_gun_mappings.find(gameid);
 	if (it != s_gun_mappings.end())
 	{
@@ -344,6 +347,9 @@ void ACJV::SetGameId(const std::string& gameid)
 	else
 		m_gunMapping = &s_default_gun_mapping;
 
+	// TC3 has 3 I/O boards: TSS-I/O (white flash), MIU-I/O (640x224), RAYS PCB (0xFFFF).
+	// MIU-I/O chosen: no flash artifact, calibration uses JVS trigger debounce directly.
+	// RAYS PCB calibration uses DMA protocol (cmd 0x70) that bypasses our JVS handler.
 	if (gameid == "NM00012")
 		CurrentBoardID = MIU_IO_JPN_GUN_EXTENTI;
 	else
@@ -459,6 +465,8 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*output++) = JVS_PLAYER_COUNT; //2 players
 			(*output++) = 0x10;             //16 switches
 			(*output++) = 0x00;
+			// TODO: driving games (e.g. Wangan Midnight)
+#if 0
 			if(m_jvsMode == JVS_MODE::DRIVE)
 			{
 				(*output++) = 0x03;                  //Analog Input
@@ -467,12 +475,14 @@ void do_jvs_packet(const u8* input, u8* output) {
 				(*output++) = 0x00;
 				(*dstSize) += 4;
 			}
-			else if(m_jvsMode == JVS_MODE::LIGHTGUN)
+			else
+#endif
+			if(m_jvsMode == JVS_MODE::LIGHTGUN)
 			{
 				(*output++) = 0x06; //Screen Pos Input
 				(*output++) = 0x10; //X pos bits
 				(*output++) = 0x10; //Y pos bits
-				(*output++) = m_gunMapping->p2_trigger ? 0x02 : 0x01;
+				(*output++) = m_gunMapping->p2_trigger ? 0x02 : 0x01; // gun count: 2 if P2 trigger defined (Vampire Night), else 1
 
 				//GPIO for recoil
 				(*output++) = 0x12; //GPIO output
@@ -488,6 +498,8 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 				(*dstSize) += 12;
 			}
+			// TODO: drum games (e.g. Taiko no Tatsujin)
+#if 0
 			else if(m_jvsMode == JVS_MODE::DRUM)
 			{
 				(*output++) = 0x03;                 //Analog Input
@@ -497,6 +509,9 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 				(*dstSize) += 4;
 			}
+#endif
+			// TODO: touch panel games
+#if 0
 			else if(m_jvsMode == JVS_MODE::TOUCH)
 			{
 				(*output++) = 0x06; //Screen Pos Input
@@ -506,6 +521,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 				(*dstSize) += 4;
 			}
+#endif
 			(*output++) = 0x00; //End of features
 
 			(*dstSize) += 10;
@@ -537,10 +553,14 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 			(*output++) = m_testButtonState|(s_dip_switch_state & TESTMODE);
+			//(*output++) = (m_jvsSystemButtonState == 0x03) ? 0x80 : 0;  //Test
 
 			(*output++) = static_cast<u8>(m_jvsButtonState[0]);      //Player 1
 			(*output++) = static_cast<u8>(m_jvsButtonState[0] >> 8); //Player 1
 			(*dstSize) += 4;
+
+			//if (m_jvsButtonState[0])
+			//	Console.WriteLn("JVS P1 buttons: %04X coin:%d", m_jvsButtonState[0], m_coin1);
 
 			if(playerCount == 2)
 			{
@@ -577,7 +597,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			}
 		}
 		break;
-		case JVS::OUTPUT_COIN_NUM:
+		case JVS::OUTPUT_COIN_NUM: // actually never received this jvs cmd
 		{
 			JVS_ASSERT(inSize >= 3);
 			u8 slotCount = (*input++);
@@ -597,7 +617,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*dstSize) += 1;
 		}
 		break;
-		case JVS::DECREASE_COIN_NUM:
+		case JVS::DECREASE_COIN_NUM: // actually never received this jvs cmd
 		{
 			JVS_ASSERT(inSize >= 3);
 			u8 slotCount = (*input++);
@@ -626,6 +646,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 
+			// TC4 reads screen position from analog channels instead of SCREENPOS
 			if(m_jvsMode == JVS_MODE::LIGHTGUN)
 			{
 				JVS_ASSERT(channel == 2);
@@ -668,6 +689,10 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 
+			// Screen position scaling depends on I/O board:
+			// - MIU-I/O (TC3): native 640x224, Y inverted (bottom-up)
+			// - RAYS PCB (TC4, Cobra, VPN): full 16-bit range 0xFFFF, Y inverted (bottom-up)
+			// pos=0 means off-screen in JVS, so on-screen values are clamped to minimum 1
 			u16 posX = 0, posY = 0;
 			if(m_jvsMode == JVS_MODE::LIGHTGUN && m_jvsLightgunDX >= 0.0f)
 			{
@@ -692,7 +717,9 @@ void do_jvs_packet(const u8* input, u8* output) {
 			(*dstSize) += 1 + (4 * channel);
 		}
 		break;
-		// GPIO output
+		// GPIO output — game sends byte values to control physical outputs (e.g. gun recoil solenoids).
+		// Byte 1 = P1 recoil: value >= 0x50 means recoil triggered, value 0xC0 observed during fire.
+		// TODO: forward p1Recoil to serial port / USB for real lightgun recoil hardware
 		case JVS::OUTPUT_GENERAL:
 		{
 			JVS_ASSERT(inSize >= 2);
@@ -720,12 +747,13 @@ void do_jvs_packet(const u8* input, u8* output) {
 		break;
 		default:
 			//Unknown command
+			// Console.Error("ACJV::%s: unknown JVS CMD 0x%X", __FUNCTION__, cmd);
 			break;
 		}
 	}
 	u8 inChecksum = (*input);
-	(void)inChecksum;
-	(void)inWorkChecksum;
+	// if (inChecksum != (inWorkChecksum & 0xFF))
+	//     Console.Warning("ACJV::%s: checksum mismatch: %02X | %02X", __FUNCTION__, inChecksum, inWorkChecksum&0xFF);
 }
 
 
