@@ -275,16 +275,13 @@ static float m_jvsLightgunDY = -1.0f;
 static u16 m_jvsWheelChannels[JVS_WHEEL_CHANNEL_MAX] = {};
 static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
-//                                                pedal        sensor         s_a_h  p1_start    p2_start    p1_trigger    p2_trigger
-static const GunMapping s_default_gun_mapping = {JVS_BTN_3,   JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_2,    0};
+//                                                   pedal        sensor         s_a_h  p1_start    p2_start    p1_trigger    p2_trigger
+static const GunMapping s_default_gun_mapping =    {JVS_BTN_3,   JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_2,    0};
 static const std::map<std::string, GunMapping> s_gun_mappings = {
-	{"CBR1", {JVS_BTN_3,    JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_LEFT, 0}},          // Cobra The Arcade
-	{"TSF1", {JVS_BTN_3,    JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_LEFT, 0}},          // Time Crisis 4
-	{"TST1", {JVS_BTN_6,    0,             false, 0,          0,          JVS_BTN_2,    0}},          // Time Crisis 3
-	{"TST2", {JVS_BTN_6,    0,             false, 0,          0,          JVS_BTN_2,    0}},          // Time Crisis 3 (Ver.B)
-	{"VPN1", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night
-	{"VPN2", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night (Ver.B)
-	{"VPN3", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night (Ver.C)
+	{"NM00003", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night
+	{"NM00012", {JVS_BTN_6,    0,             false, 0,          0,          JVS_BTN_2,    0}},          // Time Crisis 3
+	{"NM00021", {JVS_BTN_3,    JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_LEFT, 0}},          // Cobra The Arcade
+	{"NM00032", {JVS_BTN_3,    JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_LEFT, 0}},          // Time Crisis 4
 };
 static const GunMapping* m_gunMapping = &s_default_gun_mapping;
 
@@ -343,7 +340,7 @@ void ACJV::SetGameId(const std::string& gameid)
 	else
 		m_gunMapping = &s_default_gun_mapping;
 
-	if (gameid == "TST1" || gameid == "TST2")
+	if (gameid == "NM00012")
 		CurrentBoardID = MIU_IO_JPN_GUN_EXTENTI;
 	else
 		CurrentBoardID = RAYS_PCB;
