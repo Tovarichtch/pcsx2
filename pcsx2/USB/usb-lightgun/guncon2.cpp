@@ -280,7 +280,9 @@ namespace usb_lightgun
 							ACJV::SetScreenPos(static_cast<u16>((1.0f - dx) * 0xFFFF), static_cast<u16>(dy * 0xFFFF));
 						else
 							ACJV::SetScreenPos(0, 0);
-						ACJV::SetButtonState(0, JVS_BTN_RIGHT, !on_screen);
+						const auto& gm = ACJV::GetGunMapping();
+						if (gm.sensor)
+							ACJV::SetButtonState(0, gm.sensor, gm.sensor_active_high ? on_screen : !on_screen);
 					}
 
 					// Time Crisis games do a "calibration" by displaying a black frame for a single frame,
@@ -584,9 +586,30 @@ namespace usb_lightgun
 				const u32 player = s->port;
 				switch (bind_index)
 				{
-				case BID_TRIGGER: ACJV::SetButtonState(player, ACJV::GetGunMapping().trigger, pressed); break;
+				case BID_TRIGGER:
+				{
+					const auto& mapping = ACJV::GetGunMapping();
+					if (player == 0)
+						ACJV::SetButtonState(0, mapping.trigger, pressed);
+					else if (mapping.p2_trigger)
+						ACJV::SetButtonState(0, mapping.p2_trigger, pressed);
+					else
+						ACJV::SetButtonState(player, mapping.trigger, pressed);
+					break;
+				}
 				case BID_A:       ACJV::SetButtonState(player, ACJV::GetGunMapping().pedal, pressed); break;
-				case BID_START:   ACJV::SetButtonState(player, JVS_BTN_START, pressed); break;
+				case BID_START:
+				{
+					const auto& mapping = ACJV::GetGunMapping();
+					u16 startBit = mapping.start ? mapping.start : JVS_BTN_START;
+					if (player == 0)
+						ACJV::SetButtonState(0, startBit, pressed);
+					else if (mapping.p2_start)
+						ACJV::SetButtonState(0, mapping.p2_start, pressed);
+					else
+						ACJV::SetButtonState(player, startBit, pressed);
+					break;
+				}
 				case BID_SELECT:  if (pressed) ACJV::InsertCoin(player); break;                 // COIN
 				}
 			}

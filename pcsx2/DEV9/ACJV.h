@@ -51,6 +51,9 @@ struct GunMapping {
     u16 pedal;
     u16 sensor;
     bool sensor_active_high;
+    u16 p2_trigger;
+    u16 start;
+    u16 p2_start;
 };
 
 namespace ACJV {

@@ -280,15 +280,15 @@ static float m_jvsLightgunDY = -1.0f;
 static u16 m_jvsWheelChannels[JVS_WHEEL_CHANNEL_MAX] = {};
 static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
-static const GunMapping s_default_gun_mapping = {JVS_BTN_2, JVS_BTN_3, JVS_BTN_RIGHT, false};
+static const GunMapping s_default_gun_mapping = {JVS_BTN_2, JVS_BTN_3, JVS_BTN_RIGHT, false, 0, 0, 0};
 static const std::map<std::string, GunMapping> s_gun_mappings = {
-	{"TST1", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 — MIU-I/O (mode 2): trigger=BTN2, pedal=BTN6, no sensor bit
-	{"TST2", {JVS_BTN_2,    JVS_BTN_6,     0,              false}}, // Time Crisis 3 (Ver.B)
-	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Time Crisis 4 — Ghidra RE: trigger=LEFT, pedal=BTN3, sensor=RIGHT
-	{"CBR1", {JVS_BTN_2,    JVS_BTN_3,     JVS_BTN_RIGHT, false}}, // Cobra The Arcade — needs verification
-	{"VPN1", {JVS_BTN_1,    0,             0,              false}}, // Vampire Night — Ghidra RE: trigger=BTN1 (SwData bit 0x0200), no pedal/sensor
-	{"VPN2", {JVS_BTN_1,    0,             0,              false}}, // Vampire Night (Ver.B)
-	{"VPN3", {JVS_BTN_1,    0,             0,              false}}, // Vampire Night (export)
+	{"TST1", {JVS_BTN_2,    JVS_BTN_6,     0,              false, 0, 0, 0}}, // Time Crisis 3
+	{"TST2", {JVS_BTN_2,    JVS_BTN_6,     0,              false, 0, 0, 0}}, // Time Crisis 3 (Ver.B)
+	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false, 0, 0, 0}}, // Time Crisis 4
+	{"CBR1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false, 0, 0, 0}}, // Cobra The Arcade
+	{"VPN1", {JVS_BTN_2,    0,             0x200,          true,  JVS_BTN_5, JVS_BTN_3, JVS_BTN_6}},
+	{"VPN2", {JVS_BTN_2,    0,             0x200,          true,  JVS_BTN_5, JVS_BTN_3, JVS_BTN_6}},
+	{"VPN3", {JVS_BTN_2,    0,             0x200,          true,  JVS_BTN_5, JVS_BTN_3, JVS_BTN_6}},
 };
 static const GunMapping* m_gunMapping = &s_default_gun_mapping;
 
@@ -350,7 +350,8 @@ static void UpdateLightgunFromMouse()
 	const auto& [mx, my] = InputManager::GetPointerAbsolutePosition(0);
 	float dx, dy;
 	GSTranslateWindowToDisplayCoordinates(mx, my, &dx, &dy);
-	bool on_screen = (dx >= 0.0f && dy >= 0.0f);
+	constexpr float edge_margin = 0.01f;
+	bool on_screen = (dx >= 0.0f && dy >= 0.0f && dx < (1.0f - edge_margin) && dy < (1.0f - edge_margin));
 	if (on_screen)
 	{
 		m_jvsLightgunDX = dx;
@@ -366,7 +367,8 @@ static void UpdateLightgunFromMouse()
 		m_jvsScreenPosY = 0;
 	}
 	const auto& gm = ACJV::GetGunMapping();
-	ACJV::SetButtonState(0, gm.sensor, gm.sensor_active_high ? on_screen : !on_screen);
+	if (gm.sensor)
+		ACJV::SetButtonState(0, gm.sensor, gm.sensor_active_high ? on_screen : !on_screen);
 }
 
 void do_jvs_packet(const u8* input, u8* output) {
@@ -464,7 +466,7 @@ void do_jvs_packet(const u8* input, u8* output) {
 				(*output++) = 0x06; //Screen Pos Input
 				(*output++) = 0x10; //X pos bits
 				(*output++) = 0x10; //Y pos bits
-				(*output++) = 0x01; //channels
+				(*output++) = m_gunMapping->p2_trigger ? 0x02 : 0x01;
 
 				//GPIO for recoil
 				(*output++) = 0x12; //GPIO output
@@ -528,26 +530,11 @@ void do_jvs_packet(const u8* input, u8* output) {
 			inSize -= 2;
 
 			(*output++) = JVS_CMD_SUCCESS;
-
-			/*m_counter++;
-			if(m_testButtonState == 0 && m_jvsSystemButtonState == 0x03 && m_counter > 16)
-			{
-				m_testButtonState = 0x80;
-				m_counter = 0;
-			}
-			else if(m_testButtonState == 0x80 && m_jvsSystemButtonState == 0x03 && m_counter > 16)
-			{
-				m_testButtonState = 0;
-				m_counter = 0;
-			}*/
 			(*output++) = m_testButtonState|(s_dip_switch_state & TESTMODE);
 
-			//(*output++) = (m_jvsSystemButtonState == 0x03) ? 0x80 : 0;  //Test
 			(*output++) = static_cast<u8>(m_jvsButtonState[0]);      //Player 1
 			(*output++) = static_cast<u8>(m_jvsButtonState[0] >> 8); //Player 1
 			(*dstSize) += 4;
-			//if (m_jvsButtonState[0])
-			//	Console.WriteLn("JVS P1 buttons: %04X coin:%d", m_jvsButtonState[0], m_coin1);
 
 			if(playerCount == 2)
 			{
@@ -667,7 +654,6 @@ void do_jvs_packet(const u8* input, u8* output) {
 		{
 			assert(inSize != 0);
 			u8 channel = (*input++);
-			assert(channel == 1);
 			inWorkChecksum += channel;
 			inSize--;
 
@@ -676,33 +662,28 @@ void do_jvs_packet(const u8* input, u8* output) {
 
 			(*output++) = JVS_CMD_SUCCESS;
 
-			if(m_jvsMode == JVS_MODE::LIGHTGUN)
+			u16 posX = 0, posY = 0;
+			if(m_jvsMode == JVS_MODE::LIGHTGUN && m_jvsLightgunDX >= 0.0f)
 			{
-				u16 posX = 0, posY = 0;
-				if (m_jvsLightgunDX >= 0.0f)
-				{
-					posX = static_cast<u16>(m_jvsLightgunDX * 640.0f);
-					if (ACJV::CurrentBoardID == RAYS_PCB || ACJV::CurrentBoardID == MIU_IO_JPN_GUN_EXTENTI)
-						posY = static_cast<u16>((1.0f - m_jvsLightgunDY) * 224.0f);
-					else
-						posY = static_cast<u16>(m_jvsLightgunDY * 224.0f);
-					if (posX == 0) posX = 1;
-					if (posY == 0) posY = 1;
-				}
+				const float scaleX = (ACJV::CurrentBoardID == MIU_IO_JPN_GUN_EXTENTI) ? 640.0f : 0xFFFF;
+				const float scaleY = (ACJV::CurrentBoardID == MIU_IO_JPN_GUN_EXTENTI) ? 224.0f : 0xFFFF;
+				posX = static_cast<u16>(m_jvsLightgunDX * scaleX);
+				if (ACJV::CurrentBoardID == RAYS_PCB || ACJV::CurrentBoardID == MIU_IO_JPN_GUN_EXTENTI)
+					posY = static_cast<u16>((1.0f - m_jvsLightgunDY) * scaleY);
+				else
+					posY = static_cast<u16>(m_jvsLightgunDY * scaleY);
+				if (posX == 0) posX = 1;
+				if (posY == 0) posY = 1;
+			}
+			for (u8 ch = 0; ch < channel; ch++)
+			{
 				(*output++) = static_cast<u8>(posX >> 8);
 				(*output++) = static_cast<u8>(posX);
 				(*output++) = static_cast<u8>(posY >> 8);
 				(*output++) = static_cast<u8>(posY);
 			}
-			else
-			{
-				(*output++) = 0;
-				(*output++) = 0;
-				(*output++) = 0;
-				(*output++) = 0;
-			}
 
-			(*dstSize) += 5;
+			(*dstSize) += 1 + (4 * channel);
 		}
 		break;
 		// GPIO output
