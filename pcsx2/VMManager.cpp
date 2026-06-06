@@ -1301,7 +1301,7 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 				s_imgname = INI.GetStringValue("data", "mediasrc");
 				s_title = s_serial = INI.GetStringValue("game", "name");
 				s_disc_serial = s_serial = INI.GetStringValue("game", "gameid");
-				ACJV::SetGameId(s_serial);
+				ACJV::SetGameId(s_serial); // Adapt JVS input to detected GAMEID
 				std::string platform = INI.GetStringValue("game", "platform", "");
 				s_acgame_sys246 = (platform == "246" || platform == "256" || platform == "super256");
 				s_acgame_sys256 = (platform == "256" || platform == "super256");

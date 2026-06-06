@@ -262,6 +262,7 @@ void ACJV::Write16(u32 addr, u16 val) {
 
 #define JVS_ASSERT(x) if (!(x)) Console.WriteLn("## ASSERT ## %s:%s:%d %s", __FILE__, __FUNCTION__, __LINE__, #x);
 
+// JVS bus state — volatile runtime values, reset on game switch (see SetGameId)
 static u16 m_jvsSystemButtonState = 0;
 static u16 m_jvsButtonState[JVS_PLAYER_COUNT] = {};
 static u8 m_testButtonState = 0;
@@ -270,13 +271,16 @@ static u16 m_coin2 = 0;
 static JVS_MODE m_jvsMode = JVS_MODE::DEFAULT;
 static u16 m_jvsScreenPosX = 0;
 static u16 m_jvsScreenPosY = 0;
-static float m_jvsLightgunDX = -1.0f;
-static float m_jvsLightgunDY = -1.0f;
+static float m_jvsLightgunDX = -1.0f;  // normalized display X (-1 = off-screen)
+static float m_jvsLightgunDY = -1.0f;  // normalized display Y (-1 = off-screen)
 static u16 m_jvsWheelChannels[JVS_WHEEL_CHANNEL_MAX] = {};
 static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
-//                                                   pedal        sensor         s_a_h  p1_start    p2_start    p1_trigger    p2_trigger
-static const GunMapping s_default_gun_mapping =    {JVS_BTN_3,   JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_2,    0};
+// Per-game JVS button mapping for lightgun games, keyed by NM game ID (see issue #9).
+// Field order: pedal, sensor, sensor_active_high, p1_start, p2_start, p1_trigger, p2_trigger
+// Each value is a JVS bit from JVSButton enum. 0 = not used for this game.
+// This table serves as template for future per-game configs (fighting, driving, drum, etc).
+static const GunMapping s_default_gun_mapping = {JVS_BTN_3, JVS_BTN_RIGHT, false, 0, 0, JVS_BTN_2, 0};
 static const std::map<std::string, GunMapping> s_gun_mappings = {
 	{"NM00003", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night
 	{"NM00012", {JVS_BTN_6,    0,             false, 0,          0,          JVS_BTN_2,    0}},          // Time Crisis 3
