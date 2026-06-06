@@ -325,6 +325,19 @@ void ACJV::SetScreenPos(u16 x, u16 y)
 
 void ACJV::SetGameId(const std::string& gameid)
 {
+	m_coin1 = 0;
+	m_coin2 = 0;
+	m_jvsButtonState[0] = 0;
+	m_jvsButtonState[1] = 0;
+	m_jvsSystemButtonState = 0;
+	m_testButtonState = 0;
+	m_jvsScreenPosX = 0;
+	m_jvsScreenPosY = 0;
+	m_jvsLightgunDX = -1.0f;
+	m_jvsLightgunDY = -1.0f;
+	std::memset(m_jvsWheelChannels, 0, sizeof(m_jvsWheelChannels));
+	std::memset(m_jvsDrumChannels, 0, sizeof(m_jvsDrumChannels));
+
 	auto it = s_gun_mappings.find(gameid);
 	if (it != s_gun_mappings.end())
 	{
