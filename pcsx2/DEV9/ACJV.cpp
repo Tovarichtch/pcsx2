@@ -225,18 +225,6 @@ void ACJV::SetDefaultConfiguration(SettingsInterface& si)
 	for (const DIPSwitchInfo& dip_switch : s_dip_switch_info)
 		si.SetBoolValue(CONFIG_SECTION, dip_switch.name, dip_switch.default_value);
 	si.SetBoolValue(CONFIG_SECTION, "SuppressDaemon", true);
-
-	si.SetStringValue(CONFIG_SECTION, "P1_Up",      "Keyboard/Up");
-	si.SetStringValue(CONFIG_SECTION, "P1_Down",    "Keyboard/Down");
-	si.SetStringValue(CONFIG_SECTION, "P1_Left",    "Keyboard/Left");
-	si.SetStringValue(CONFIG_SECTION, "P1_Right",   "Keyboard/Right");
-	si.SetStringValue(CONFIG_SECTION, "P1_Button1", "Keyboard/J");
-	si.SetStringValue(CONFIG_SECTION, "P1_Button2", "Keyboard/I");
-	si.SetStringValue(CONFIG_SECTION, "P1_Button3", "Keyboard/K");
-	si.SetStringValue(CONFIG_SECTION, "P1_Button4", "Keyboard/L");
-	si.SetStringValue(CONFIG_SECTION, "P1_Start",   "Keyboard/Return");
-	si.SetStringValue(CONFIG_SECTION, "P1_Service", "Keyboard/Backspace");
-	si.SetStringValue(CONFIG_SECTION, "Coin1",      "Keyboard/5");
 }
 
 u16 ACJV::Read16(u32 addr) {

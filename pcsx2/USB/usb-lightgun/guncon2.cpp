@@ -271,6 +271,7 @@ namespace usb_lightgun
 					const auto [pos_x, pos_y] = us->CalculatePosition();
 
 					// Forward mouse position to JVS: on-screen = coords, off-screen = (0,0), update sensor bit
+					// TODO: use CalculatePosition() result instead of raw mouse, so Relative Aiming (joystick) works for S246
 					if (ACJV::enabled)
 					{
 						const auto& [mx, my] = InputManager::GetPointerAbsolutePosition(0);

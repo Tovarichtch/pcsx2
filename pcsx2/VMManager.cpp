@@ -1341,12 +1341,13 @@ bool VMManager::AutoDetectSource(const std::string& filename, Error* error)
 				s_elf_override = Path::Combine(basedir, INI.GetStringValue("data", "elf"));
 				EmuConfig.CurrentGameArgs = INI.GetStringValue("data", "args");
 				ACSRAM::filepath = Path::Combine(basedir, INI.GetStringValue("data", "sram", "sram.bin"));
-				if (INI.GetBoolValue("data", "usbgun", false))
+				std::string jvsmode = INI.GetStringValue("data", "jvsmode", "");
+				if (jvsmode == "lightgun")
 				{
 					Host::SetBaseStringSettingValue("USB1", "Type", "guncon2");
 					Host::SetBaseStringSettingValue("USB2", "Type", "guncon2");
 					ACJV::SetMode(JVS_MODE::LIGHTGUN);
-					Console.WriteLn(Color_Green, "ACGAME: USB light gun mode -> GunCon2 on USB1+USB2, JVS=LIGHTGUN");
+					Console.WriteLn(Color_Green, "ACGAME: jvsmode=lightgun -> GunCon2 on USB1+USB2");
 				}
 				else
 				{
