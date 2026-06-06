@@ -82,7 +82,7 @@ static constexpr const std::array<InputBindingInfo, 12> s_jvs_p1_button_bindings
 	{"P1_Button5", TRANSLATE_NOOP("JVS", "P1 Button 5"), nullptr, InputBindingInfo::Type::Button, JVS_BTN_5,       GenericInputBinding::Circle},
 	{"P1_Button6", TRANSLATE_NOOP("JVS", "P1 Button 6"), nullptr, InputBindingInfo::Type::Button, JVS_BTN_6,       GenericInputBinding::Unknown},
 	{"P1_Start",   TRANSLATE_NOOP("JVS", "P1 Start"),    nullptr, InputBindingInfo::Type::Button, JVS_BTN_START,   GenericInputBinding::Start},
-	{"P1_Service", TRANSLATE_NOOP("JVS", "P1 Service"),  nullptr, InputBindingInfo::Type::Button, JVS_BTN_SERVICE, GenericInputBinding::Select}, // Coins
+	{"P1_Service", TRANSLATE_NOOP("JVS", "P1 Service"),  nullptr, InputBindingInfo::Type::Button, JVS_BTN_SERVICE, GenericInputBinding::Select},
 }};
 
 static constexpr const std::array<InputBindingInfo, 12> s_jvs_p2_button_bindings = {{
@@ -262,11 +262,11 @@ void ACJV::Write16(u32 addr, u16 val) {
 
 #define JVS_ASSERT(x) if (!(x)) Console.WriteLn("## ASSERT ## %s:%s:%d %s", __FILE__, __FUNCTION__, __LINE__, #x);
 
-u16 m_jvsSystemButtonState = 0;
-u16 m_jvsButtonState[JVS_PLAYER_COUNT] = {};
-u8 m_testButtonState = 0;
-u16 m_coin1 = 0;
-u16 m_coin2 = 0;
+static u16 m_jvsSystemButtonState = 0;
+static u16 m_jvsButtonState[JVS_PLAYER_COUNT] = {};
+static u8 m_testButtonState = 0;
+static u16 m_coin1 = 0;
+static u16 m_coin2 = 0;
 static JVS_MODE m_jvsMode = JVS_MODE::DEFAULT;
 static u16 m_jvsScreenPosX = 0;
 static u16 m_jvsScreenPosY = 0;
@@ -378,8 +378,6 @@ static void UpdateLightgunFromMouse()
 }
 
 void do_jvs_packet(const u8* input, u8* output) {
-	if (input[0] != JVS_SYNC) {
-	}
 	input++;
 	u8 inDest = *input++;
 	u8 inSize = *input++;
