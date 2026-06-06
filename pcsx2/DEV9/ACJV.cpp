@@ -275,15 +275,16 @@ static float m_jvsLightgunDY = -1.0f;
 static u16 m_jvsWheelChannels[JVS_WHEEL_CHANNEL_MAX] = {};
 static u16 m_jvsDrumChannels[JVS_DRUM_CHANNEL_MAX] = {};
 
-static const GunMapping s_default_gun_mapping = {JVS_BTN_2, JVS_BTN_3, JVS_BTN_RIGHT, false, 0, 0, 0};
+//                                                pedal        sensor         s_a_h  p1_start    p2_start    p1_trigger    p2_trigger
+static const GunMapping s_default_gun_mapping = {JVS_BTN_3,   JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_2,    0};
 static const std::map<std::string, GunMapping> s_gun_mappings = {
-	{"TST1", {JVS_BTN_2,    JVS_BTN_6,     0,              false, 0, 0, 0}}, // Time Crisis 3
-	{"TST2", {JVS_BTN_2,    JVS_BTN_6,     0,              false, 0, 0, 0}}, // Time Crisis 3 (Ver.B)
-	{"TSF1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false, 0, 0, 0}}, // Time Crisis 4
-	{"CBR1", {JVS_BTN_LEFT, JVS_BTN_3,     JVS_BTN_RIGHT, false, 0, 0, 0}}, // Cobra The Arcade
-	{"VPN1", {JVS_BTN_2,    0,             0x200,          true,  JVS_BTN_5, JVS_BTN_3, JVS_BTN_6}},
-	{"VPN2", {JVS_BTN_2,    0,             0x200,          true,  JVS_BTN_5, JVS_BTN_3, JVS_BTN_6}},
-	{"VPN3", {JVS_BTN_2,    0,             0x200,          true,  JVS_BTN_5, JVS_BTN_3, JVS_BTN_6}},
+	{"CBR1", {JVS_BTN_3,    JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_LEFT, 0}},          // Cobra The Arcade
+	{"TSF1", {JVS_BTN_3,    JVS_BTN_RIGHT, false, 0,          0,          JVS_BTN_LEFT, 0}},          // Time Crisis 4
+	{"TST1", {JVS_BTN_6,    0,             false, 0,          0,          JVS_BTN_2,    0}},          // Time Crisis 3
+	{"TST2", {JVS_BTN_6,    0,             false, 0,          0,          JVS_BTN_2,    0}},          // Time Crisis 3 (Ver.B)
+	{"VPN1", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night
+	{"VPN2", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night (Ver.B)
+	{"VPN3", {0,            0x200,         true,  JVS_BTN_3,  JVS_BTN_6, JVS_BTN_2,    JVS_BTN_5}}, // Vampire Night (Ver.C)
 };
 static const GunMapping* m_gunMapping = &s_default_gun_mapping;
 
@@ -337,7 +338,7 @@ void ACJV::SetGameId(const std::string& gameid)
 	if (it != s_gun_mappings.end())
 	{
 		m_gunMapping = &it->second;
-		Console.WriteLn("ACJV: gun mapping for %s: trigger=0x%04X pedal=0x%04X sensor=0x%04X", gameid.c_str(), it->second.trigger, it->second.pedal, it->second.sensor);
+		Console.WriteLn("ACJV: gun mapping for %s: p1_trigger=0x%04X pedal=0x%04X sensor=0x%04X", gameid.c_str(), it->second.p1_trigger, it->second.pedal, it->second.sensor);
 	}
 	else
 		m_gunMapping = &s_default_gun_mapping;

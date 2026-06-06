@@ -47,13 +47,13 @@ enum class JVS_MODE {
 #define JVS_DRUM_CHANNEL_MAX 8
 
 struct GunMapping {
-    u16 trigger;
     u16 pedal;
     u16 sensor;
     bool sensor_active_high;
-    u16 p2_trigger;
-    u16 start;
+    u16 p1_start;
     u16 p2_start;
+    u16 p1_trigger;
+    u16 p2_trigger;
 };
 
 namespace ACJV {

@@ -590,18 +590,18 @@ namespace usb_lightgun
 				{
 					const auto& mapping = ACJV::GetGunMapping();
 					if (player == 0)
-						ACJV::SetButtonState(0, mapping.trigger, pressed);
+						ACJV::SetButtonState(0, mapping.p1_trigger, pressed);
 					else if (mapping.p2_trigger)
 						ACJV::SetButtonState(0, mapping.p2_trigger, pressed);
 					else
-						ACJV::SetButtonState(player, mapping.trigger, pressed);
+						ACJV::SetButtonState(player, mapping.p1_trigger, pressed);
 					break;
 				}
 				case BID_A:       ACJV::SetButtonState(player, ACJV::GetGunMapping().pedal, pressed); break;
 				case BID_START:
 				{
 					const auto& mapping = ACJV::GetGunMapping();
-					u16 startBit = mapping.start ? mapping.start : JVS_BTN_START;
+					u16 startBit = mapping.p1_start ? mapping.p1_start : JVS_BTN_START;
 					if (player == 0)
 						ACJV::SetButtonState(0, startBit, pressed);
 					else if (mapping.p2_start)
