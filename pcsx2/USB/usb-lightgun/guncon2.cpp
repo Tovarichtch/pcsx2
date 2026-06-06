@@ -270,6 +270,7 @@ namespace usb_lightgun
 				{
 					const auto [pos_x, pos_y] = us->CalculatePosition();
 
+					// Forward mouse position to JVS: on-screen = coords, off-screen = (0,0), update sensor bit
 					if (ACJV::enabled)
 					{
 						const auto& [mx, my] = InputManager::GetPointerAbsolutePosition(0);
@@ -580,12 +581,14 @@ namespace usb_lightgun
 			else
 				s->button_state &= ~bit;
 
+			// Forward GunCon2 USB buttons to JVS per-game mapping
 			if (ACJV::enabled)
 			{
 				const bool pressed = (value >= 0.5f);
 				const u32 player = s->port;
 				switch (bind_index)
 				{
+				// Trigger: P1 uses p1_trigger, P2 uses p2_trigger if defined (Vampire Night 2P)
 				case BID_TRIGGER:
 				{
 					const auto& mapping = ACJV::GetGunMapping();
@@ -597,7 +600,9 @@ namespace usb_lightgun
 						ACJV::SetButtonState(player, mapping.p1_trigger, pressed);
 					break;
 				}
+				// Foot pedal (cover/reload system: TC3, TC4, Cobra)
 				case BID_A:       ACJV::SetButtonState(player, ACJV::GetGunMapping().pedal, pressed); break;
+				// Start: P1 uses p1_start, P2 uses p2_start if defined (Vampire Night 2P)
 				case BID_START:
 				{
 					const auto& mapping = ACJV::GetGunMapping();
@@ -610,7 +615,8 @@ namespace usb_lightgun
 						ACJV::SetButtonState(player, startBit, pressed);
 					break;
 				}
-				case BID_SELECT:  if (pressed) ACJV::InsertCoin(player); break;                 // COIN
+				// Coin insert (on press only)
+				case BID_SELECT:  if (pressed) ACJV::InsertCoin(player); break;
 				}
 			}
 		}

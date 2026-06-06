@@ -522,8 +522,9 @@ static __forceinline StereoOut32 MixCore(const uint coreidx, const VoiceMixSet& 
 void spu2Mix()
 {
 	// Note: Playmode 4 is SPDIF, which overrides other inputs.
-	// When SPDIF is active, read core 0 input at HiFi rate (2x) since the
-	// S/PDIF transmitter consumes data at double the normal ADMA rate.
+	// When SPDIF is active (e.g. Time Crisis 4 EXSOUND board), read core 0
+	// input at HiFi rate (2x) since the S/PDIF transmitter consumes data at
+	// double the normal ADMA rate.
 	// ReadInput_HiFi returns packed 32-bit values; split into two 16-bit
 	// samples for left and right channels.
 	StereoOut32 RawInput0;
@@ -562,7 +563,7 @@ void spu2Mix()
 	StereoOut32 Ext(MixCore(0, VoiceData[0], InputData[0], StereoOut32::Empty));
 
 	// When PlayMode=4 (SPDIF), the game routes ADMA input to the S/PDIF
-	// transmitter (e.g. SS256 EXSOUND board). Since we don't emulate S/PDIF
+	// transmitter (e.g. Time Crisis 4 EXSOUND board). Since we don't emulate S/PDIF
 	// output, mix the raw ADMA input directly (bypassing InpVol/MMIX, as
 	// real SPDIF output is a direct digital stream).
 	if (PlayMode & 4)
