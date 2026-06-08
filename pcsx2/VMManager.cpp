@@ -732,6 +732,11 @@ void VMManager::WarnAboutUnconfiguredController()
 
 void VMManager::ApplyGameFixes()
 {
+	// Namco fighting games need AlignSpriteX to avoid vertical lines when upscaling
+	const std::string& gid = ACJV::GetGameId();
+	if (gid == "NM00007" || gid == "NM00008" || gid == "NM00026")
+		EmuConfig.GS.UserHacks_AlignSpriteX = true;
+
 	if (!HasBootedELF() && !GSDumpReplayer::IsReplayingDump())
 	{
 		// Instant DMA needs to be on for this BIOS (font rendering is broken without it, possible cache issues).

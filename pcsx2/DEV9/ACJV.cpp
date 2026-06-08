@@ -142,6 +142,7 @@ static constexpr const std::array<InputBindingInfo, 2> s_jvs_coin_bindings = {{
 
 static u16 s_dip_switch_state = DEFAULT_DIP_SWITCH_STATE;
 static bool s_suppress_daemon = true;
+static std::string s_gameid;
 
 std::span<const ACJV::DIPSwitchInfo> ACJV::GetDIPSwitches()
 {
@@ -374,8 +375,11 @@ void ACJV::SetScreenPos(u16 x, u16 y)
 }
 
 // Called from VMManager on game boot. Resets all JVS state and selects per-game I/O config.
+const std::string& ACJV::GetGameId() { return s_gameid; }
+
 void ACJV::SetGameId(const std::string& gameid)
 {
+	s_gameid = gameid;
 	// Clean slate: zero all input state on game switch within the emulator
 	m_coin1 = 0;
 	m_coin2 = 0;
